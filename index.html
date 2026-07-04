@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IHS Scanner - GitHub Edition</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #0f172a; color: #e2e8f0; }
+        h1 { color: #38bdf8; margin: 0 0 4px 0; }
+      .logo { font-size: 14px; color: #64748b; margin-bottom: 20px; }
+      .controls { background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 20px; }
+        input, button, textarea, select { padding: 8px 12px; margin: 4px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 14px; }
+        button { background: #0284c7; cursor: pointer; font-weight: 600; }
+        button:hover { background: #0369a1; }
+        button:disabled { background: #475569; cursor: not-allowed; }
+        table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 8px; overflow: hidden; font-size: 14px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #334155; }
+        th { background: #0f172a; color: #38bdf8; position: sticky; top: 0; }
+        tr:hover { background: #334155; }
+      .breakout { background: #14532d!important; }
+      .watch { background: #713f12!important; }
+      .badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+      .badge-yes { background: #16a34a; }
+      .badge-no { background: #475569; }
+      .badge-soon { background: #ea580c; }
+        #chartContainer { background: #1e293b; padding: 16px; border-radius: 8px; margin-top: 20px; display: none; }
+      .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
+      .stat-card { background: #1e293b; padding: 12px; border-radius: 8px; }
+      .stat-value { font-size: 22px; font-weight: 700; color: #38bdf8; }
+      .stat-label { font-size: 12px; color: #94a3b8; }
+      .loading { color: #fbbf24; }
+      .github-note { background: #0c4a6e; padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
+      .table-wrap { overflow-x: auto; }
+        @media (max-width: 768px) {
+            body { padding: 12px; }
+            th, td { padding: 8px 6px; font-size: 12px; }
+            button { padding: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <h1>IHS Scanner</h1>
+    <div class="logo">Inverse Head & Shoulders | GitHub Pages Edition | github.com/yourusername/ihs-scanner</div>
+
+    <div class="github-note">
+        <strong>GitHub Pages Mode:</strong> This version uses Yahoo Finance via proxy to avoid API key limits. Runs daily via GitHub Actions if you set it up.
+        <a href="https://github.com/yourusername/ihs-scanner" style="color:#7dd3fc;">View repo</a>
+    </div>
+
+    <div class="controls">
+        <label><strong>Tickers (comma separated):</strong></label><br>
+        <textarea id="tickers" rows="4" style="width: 100%;">SPY,QQQ,AAPL,MSFT,TSLA,NVDA,AMD,META,GOOGL,AMZN,NFLX,JPM,V,UNH,HD,PG,XOM,JNJ,BAC,MA</textarea><br>
+        <label>Lookback: <input type="number" id="lookback" value="180" style="width:70px"></label>
+        <label>Neckline Proj Days: <input type="number" id="projDays" value="5" style="width:70px"></label>
+        <label>Data Source:
+            <select id="dataSource">
+                <option value="yahoo">Yahoo Finance - No key, GitHub safe</option>
+                <option value="alphavantage">Alpha Vantage - Needs key</option>
+            </select>
+        </label>
+        <input type="text" id="apiKey" placeholder="Alpha Vantage key if selected" style="width:250px; display:none;"><br>
+        <button onclick="runScan()" id="scanBtn">Run Scan</button>
+        <button onclick="exportCSV()">Export CSV</button>
+        <button onclick="saveToGitHub()">Commit Results to Repo</button>
+        <span id="status"></span>
+    </div>
+
+    <div class="stats" id="stats" style="display:none;">
+        <div class="stat-card"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Patterns</div></div>
+        <div class="stat-card"><div class="stat-value" id="statBreakout">0</div><div class="stat-label">Breakouts</div></div>
+        <div class="stat-card"><div class="stat-value" id="statWatch">0</div><div class="stat-label">Near Breakout</div></div>
+        <div class="stat-card"><div class="stat-value" id="statAvgTarget">0%</div><div class="stat-label">Avg Upside</div></div>
+    </div>
+
+    <div class="table-wrap">
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Ticker</th><th>Close</th><th>Neckline</th><th>Neck +5d</th><th>Target</th><th>Upside</th>
+                    <th>Dist %</th><th>Breakout</th><th>20d PnL</th><th>Win%</th><th>Chart</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+        </table>
+    </div>
+
+    <div id="chartContainer">
+        <h3 id="chartTitle"></h3>
+        <canvas id="stockChart"></canvas>
+    </div>
+
+<script>
+let allResults = [];
+let chartInstance = null;
+
+// Toggle API key input
+document.getElementById('dataSource').addEventListener('change', (e) => {
+    document.getElementById('apiKey').style.display = e.target.value === 'alphavantage'? 'inline-block' : 'none';
+});
+
+// Yahoo Finance via free proxy - no API key needed, works on GitHub Pages
+async function fetchYahoo(ticker) {
+    const proxy = 'https://api.allorigins.win/raw?url=';
+    const end = Math.floor(Date.now() / 1000);
+    const start = end - (365 * 24 * 60 * 60); // 1 year
+    const url = encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${start}&period2=${end}&interval=1d`);
+
+    try {
+        const res = await fetch(proxy + url);
+        const data = await res.json();
+        const result = data.chart.result[0];
+        const quotes = result.indicators.quote[0];
+        const timestamps = result.timestamp;
+
+        return timestamps.map((ts, i) => ({
+            date: new Date(ts * 1000),
+            open: quotes.open[i],
+            high: quotes.high[i],
+            low: quotes.low[i],
+            close: quotes.close[i],
+            volume: quotes.volume[i]
+        })).filter(d => d.close!== null);
+    } catch (e) {
+        console.error(`Yahoo fetch failed for ${ticker}:`, e);
+        return null;
+    }
+}
+
+async function fetchAlphaVantage(ticker, apiKey) {
+    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${ticker}&outputsize=full&apikey=${apiKey}`;
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data['Error Message'] || data['Note']) throw new Error('API limit');
+        const timeSeries = data['Time Series (Daily)'];
+        return Object.entries(timeSeries).map(([date, vals]) => ({
+            date: new Date(date),
+            open: parseFloat(vals['1. open']),
+            high: parseFloat(vals['2. high']),
+            low: parseFloat(vals['3. low']),
+            close: parseFloat(vals['4. close']),
+            volume: parseFloat(vals['5. volume'])
+        })).sort((a, b) => a.date - b.date);
+    } catch (e) { return null; }
+}
+
+async function fetchData(ticker) {
+    const source = document.getElementById('dataSource').value;
+    if (source === 'yahoo') return await fetchYahoo(ticker);
+    const apiKey = document.getElementById('apiKey').value;
+    if (!apiKey) throw new Error('API key required for Alpha Vantage');
+    return await fetchAlphaVantage(ticker, apiKey);
+}
+
+function findLocalExtrema(data, order = 5) {
+    const lows = [], highs = [];
+    for (let i = order; i < data.length - order; i++) {
+        let isMin = true, isMax = true;
+        for (let j = 1; j <= order; j++) {
+            if (data[i].low > data[i - j].low || data[i].low > data[i + j].low) isMin = false;
+            if (data[i].high < data[i - j].high || data[i].high < data[i + j].high) isMax = false;
+        }
+        if (isMin) lows.push({...data[i], idx: i });
+        if (isMax) highs.push({...data[i], idx: i });
+    }
+    return { lows, highs };
+}
+
+function detectReverseHS(data, lookback) {
+    const recent = data.slice(-lookback);
+    const { lows, highs } = findLocalExtrema(recent);
+    if (lows.length < 3 || highs.length < 2) return null;
+
+    for (let i = lows.length - 3; i >= 0; i--) {
+        const LS = lows[i], HEAD = lows[i + 1], RS = lows[i + 2];
+        if (HEAD.low < LS.low && HEAD.low < RS.low &&
+            Math.abs(LS.low - RS.low) / LS.low < 0.03 &&
+            RS.idx - LS.idx >= 20) {
+
+            const peak1 = highs.filter(h => h.idx > LS.idx && h.idx < HEAD.idx).sort((a, b) => b.high - a.high)[0];
+            const peak2 = highs.filter(h => h.idx > HEAD.idx && h.idx < RS.idx).sort((a, b) => b.high - a.high)[0];
+            if (!peak1 ||!peak2) continue;
+
+            const m = (peak2.high - peak1.high) / (peak2.idx - peak1.idx);
+            const b = peak1.high - m * peak1.idx;
+            const lastIdx = recent.length - 1;
+            const necklineToday = m * lastIdx + b;
+            const projDays = parseInt(document.getElementById('projDays').value);
+            const necklineProj = m * (lastIdx + projDays) + b;
+            const headToNeckline = (m * HEAD.idx + b) - HEAD.low;
+            const target = necklineToday + headToNeckline;
+
+            return {
+                LS, HEAD, RS, peak1, peak2,
+                necklineSlope: m, necklineIntercept: b,
+                necklineToday, necklineProj, target,
+                lastClose: recent[lastIdx].close,
+                breakout: recent[lastIdx].close > necklineToday,
+                data: recent,
+                distanceToNeckline: ((necklineToday - recent[lastIdx].close) / recent[lastIdx].close) * 100
+            };
+        }
+    }
+    return null;
+}
+
+function backtestPattern(pattern, lookforward = 20) {
+    const { data } = pattern;
+    let trades = [];
+    for (let i = 50; i < data.length - lookforward; i++) {
+        const slice = data.slice(0, i + 1);
+        const p = detectReverseHS(slice, slice.length);
+        const prevP = i > 50? detectReverseHS(data.slice(0, i), i) : null;
+        if (p && p.breakout && (!prevP ||!prevP.breakout)) {
+            const entry = data[i].close;
+            const exitIdx = Math.min(i + lookforward, data.length - 1);
+            let exit = data[exitIdx].close;
+            for (let j = i; j <= exitIdx; j++) {
+                if (data[j].high >= p.target) { exit = p.target; break; }
+            }
+            trades.push({ pnl: ((exit - entry) / entry) * 100 });
+        }
+    }
+    if (trades.length === 0) return { avgPnl: 0, winRate: 0, totalTrades: 0 };
+    const wins = trades.filter(t => t.pnl > 0).length;
+    const avgPnl = trades.reduce((sum, t) => sum + t.pnl, 0) / trades.length;
+    return { avgPnl: avgPnl.toFixed(2), winRate: ((wins / trades.length) * 100).toFixed(0), totalTrades: trades.length };
+}
+
+async function runScan() {
+    const tickers = document.getElementById('tickers').value.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
+    const lookback = parseInt(document.getElementById('lookback').value);
+    const source = document.getElementById('dataSource').value;
+
+    if (source === 'alphavantage' &&!document.getElementById('apiKey').value) {
+        return alert('Enter Alpha Vantage API key or switch to Yahoo Finance');
+    }
+
+    document.getElementById('scanBtn').disabled = true;
+    document.getElementById('resultsBody').innerHTML = '';
+    allResults = [];
+    let processed = 0;
+
+    for (const ticker of tickers) {
+        document.getElementById('status').innerHTML = `<span class="loading">Scanning ${ticker}... ${processed}/${tickers.length}</span>`;
+        const data = await fetchData(ticker);
+        if (!data || data.length < 50) continue;
+
+        const pattern = detectReverseHS(data, lookback);
+        if (pattern) {
+            const backtest = backtestPattern(pattern);
+            const upside = ((pattern.target - pattern.lastClose) / pattern.lastClose * 100).toFixed(2);
+            allResults.push({ ticker,...pattern,...backtest, upside });
+        }
+        processed++;
+        await new Promise(r => setTimeout(r, 300)); // Be nice to Yahoo
+    }
+    renderTable(); updateStats();
+    document.getElementById('scanBtn').disabled = false;
+    document.getElementById('status').innerHTML = `✅ Scan complete. Found ${allResults.length} patterns. Updated ${new Date().toLocaleString()}`;
+}
+
+function renderTable() {
+    const tbody = document.getElementById('resultsBody');
+    tbody.innerHTML = '';
+    allResults.sort((a, b) => b.breakout - a.breakout || a.distanceToNeckline - b.distanceToNeckline);
+    allResults.forEach(r => {
+        const row = tbody.insertRow();
+        if (r.breakout) row.className = 'breakout';
+        else if (r.distanceToNeckline < 2 && r.distanceToNeckline > 0) row.className = 'watch';
+        const badge = r.breakout? '<span class="badge badge-yes">YES</span>' :
+                      r.distanceToNeckline < 2? '<span class="badge badge-soon">SOON</span>' :
+                      '<span class="badge badge-no">NO</span>';
+        row.innerHTML = `
+            <td><strong>${r.ticker}</strong></td>
+            <td>$${r.lastClose.toFixed(2)}</td>
+            <td>$${r.necklineToday.toFixed(2)}</td>
+            <td>$${r.necklineProj.toFixed(2)}</td>
+            <td>$${r.target.toFixed(2)}</td>
+            <td>${r.upside}%</td>
+            <td>${r.distanceToNeckline.toFixed(2)}%</td>
+            <td>${badge}</td>
+            <td>${r.avgPnl}%</td>
+            <td>${r.winRate}%</td>
+            <td><button onclick='showChart(${JSON.stringify(r.ticker)})'>View</button></td>
+        `;
+    });
+}
+
+function updateStats() {
+    document.getElementById('stats').style.display = 'grid';
+    document.getElementById('statTotal').textContent = allResults.length;
+    document.getElementById('statBreakout').textContent = allResults.filter(r => r.breakout).length;
+    document.getElementById('statWatch').textContent = allResults.filter(r =>!r.breakout && r.distanceToNeckline < 2).length;
+    const avgTarget = allResults.length? (allResults.reduce((sum, r) => sum + parseFloat(r.upside), 0) / allResults.length).toFixed(1) : 0;
+    document.getElementById('statAvgTarget').textContent = avgTarget + '%';
+}
+
+function showChart(ticker) {
+    const r = allResults.find(x => x.ticker === ticker);
+    if (!r) return;
+    document.getElementById('chartContainer').style.display = 'block';
+    document.getElementById('chartTitle').textContent = `${ticker} - Reverse H&S Pattern`;
+    const ctx = document.getElementById('stockChart');
+    if (chartInstance) chartInstance.destroy();
+    const labels = r.data.map(d => d.date.toLocaleDateString());
+    const closes = r.data.map(d => d.close);
+    const neckline = r.data.map((d, i) => r.necklineSlope * i + r.necklineIntercept);
+    chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Close', data: closes, borderColor: '#38bdf8', tension: 0.1, pointRadius: 0 },
+                { label: 'Neckline', data: neckline, borderColor: '#16a34a', borderDash: [5, 5], pointRadius: 0 },
+                { label: 'Target', data: Array(closes.length).fill(r.target), borderColor: '#a855f7', borderDash: [2, 2], pointRadius: 0 }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: '#e2e8f0' } } },
+            scales: {
+                x: { ticks: { color: '#94a3b8', maxTicksLimit: 10 }, grid: { color: '#334155' } },
+                y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+            }
+        }
+    });
+}
+
+function exportCSV() {
+    if (allResults.length === 0) return alert('Run scan first');
+    const headers = ['Ticker,Close,Neckline,Proj,Target,Upside%,Dist%,Breakout,PnL,Win%'];
+    const rows = allResults.map(r =>
+        `${r.ticker},${r.lastClose.toFixed(2)},${r.necklineToday.toFixed(2)},${r.necklineProj.toFixed(2)},${r.target.toFixed(2)},${r.upside},${r.distanceToNeckline.toFixed(2)},${r.breakout},${r.avgPnl},${r.winRate}`
+    );
+    const csv = headers.concat(rows).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `ihs-scan_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+}
+
+function saveToGitHub() {
+    alert('To auto-commit results:\n1. Set up GitHub Actions in your repo\n2. Use workflow_dispatch to run scan + commit CSV\nWant me to write that.yml file for you?');
+}
+</script>
+</body>
+</html>
