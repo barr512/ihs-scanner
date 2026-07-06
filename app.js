@@ -181,6 +181,7 @@ function scoreSpacing(rowInterval, treeInterval, offset, input) {
   }
 
   return score;
+}
 function scoreSimplicity(rowInterval, treeInterval, offset) {
   let score = 100;
 
