@@ -9,10 +9,12 @@ const setupScreen = document.getElementById("setupScreen");
 const resultsScreen = document.getElementById("resultsScreen");
 const backBtn = document.getElementById("backBtn");
 generateBtn.addEventListener("click", generatePlans);
-backBtn.addEventListener("click", () => {
-  resultsScreen.classList.add("hidden");
-  setupScreen.classList.remove("hidden");
-});
+if (backBtn) {
+  backBtn.addEventListener("click", () => {
+    resultsScreen.classList.add("hidden");
+    setupScreen.classList.remove("hidden");
+  });
+}
 function getInputs() {
   return {
     blockName: document.getElementById("blockName").value || "Unnamed Block",
