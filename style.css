@@ -237,3 +237,28 @@ button:active {
 .option-card:active {
   transform: scale(0.99);
 }
+.preview-map .tree {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+}
+
+.overview-map {
+  gap: 2px;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.overview-map .tree-line {
+  gap: 2px;
+}
+
+.overview-map .tree {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+}
+
+.overview-map .tree.dispenser {
+  box-shadow: none;
+}
