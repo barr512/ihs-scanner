@@ -116,7 +116,7 @@ const easiestDeployment = pickBest(candidates, "easy");
     ...easiestDeployment
   }
 ]);
-  ]);
+
 
   setupScreen.classList.add("hidden");
 resultsScreen.classList.remove("hidden");
