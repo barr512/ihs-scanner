@@ -28,7 +28,7 @@ function getInputs() {
     rows: Number(document.getElementById("rows").value),
     rowSpacing: Number(document.getElementById("rowSpacing").value),
     treeSpacing: Number(document.getElementById("treeSpacing").value),
-    rate: Number(document.getElementById("rate").value),
+    targetRate: Number(document.getElementById("rate").value),
     crewSize: Number(document.getElementById("crewSize").value)
   };
 }
@@ -60,7 +60,10 @@ function showPlanScreen(plan) {
 }
 function generatePlans() {
   const input = getInputs();
-
+const engineResults = getBestPatterns(input);
+console.log(engineResults);
+alert(`Engine found ${engineResults.patterns.length} patterns. Top pattern uses ${engineResults.patterns[0].count} dispensers.`);
+return;
   const squareFeetPerAcre = 43560;
   const blockSqFt = input.acres * squareFeetPerAcre;
   const blockWidth = input.rows * input.rowSpacing;
