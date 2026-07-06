@@ -60,16 +60,50 @@ function showPlanScreen(plan) {
 }
 function generatePlans() {
   const input = getInputs();
-const engineResults = getBestPatterns(input);
-console.log(engineResults);
 
-currentInput = input;
-currentPlans = engineResults.patterns;
+  const engineResults = getBestPatterns(input);
+  console.log(engineResults);
 
-renderSummary(input, engineResults.orchard.trees.length);
-renderOptions(currentPlans, input);
-showOptionsScreen();
-return;
+  input.targetDispensers = Math.round(input.acres * input.targetRate);
+  input.targetAreaPerDispenser = 43560 / input.targetRate;
+  input.estimatedRowLength = engineResults.orchard.rowLength;
+  input.treesPerRow = engineResults.orchard.treesPerRow;
+
+  currentInput = input;
+  currentPlans = engineResults.patterns.map(pattern =>
+    convertEnginePatternToUiPlan(pattern, engineResults.orchard, input)
+  );
+function convertEnginePatternToUiPlan(pattern, orchard, input) {
+  const layout = [];
+
+  for (let r = 0; r < orchard.rows; r++) {
+    layout.push(Array(orchard.treesPerRow).fill(false));
+  }
+
+  pattern.placements.forEach(place => {
+    layout[place.row - 1][place.tree - 1] = true;
+  });
+
+  return {
+    ...pattern,
+    layout,
+    actualRate: pattern.resultingRate,
+    percentRateDifference:
+      Math.abs(pattern.count - pattern.targetDispensers) /
+      pattern.targetDispensers,
+    betweenRowsFeet: pattern.rowInterval * input.rowSpacing,
+    betweenTreesFeet: pattern.treeInterval * input.treeSpacing,
+    actualAreaPerDispenser:
+      pattern.rowInterval *
+      input.rowSpacing *
+      pattern.treeInterval *
+      input.treeSpacing
+  };
+}
+  renderSummary(input, engineResults.orchard.trees.length);
+  renderOptions(currentPlans, input);
+  showOptionsScreen();
+  return;
   const squareFeetPerAcre = 43560;
   const blockSqFt = input.acres * squareFeetPerAcre;
   const blockWidth = input.rows * input.rowSpacing;
