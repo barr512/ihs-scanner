@@ -230,3 +230,10 @@ button:active {
   display: flex;
   gap: 8px;
 }
+.option-card {
+  cursor: pointer;
+}
+
+.option-card:active {
+  transform: scale(0.99);
+}
