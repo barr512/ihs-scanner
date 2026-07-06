@@ -13,7 +13,8 @@ function getInputs() {
     blockName: document.getElementById("blockName").value || "Unnamed Block",
     acres: Number(document.getElementById("acres").value),
     rows: Number(document.getElementById("rows").value),
-    treesPerRow: Number(document.getElementById("treesPerRow").value),
+    rowSpacing: Number(document.getElementById("rowSpacing").value),
+treeSpacing: Number(document.getElementById("treeSpacing").value),
     rate: Number(document.getElementById("rate").value),
     crewSize: Number(document.getElementById("crewSize").value)
   };
