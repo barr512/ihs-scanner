@@ -237,21 +237,58 @@ function selectPlan(plan, input) {
 function renderMap(layout) {
   mapEl.innerHTML = "";
 
-  const rows = layout.length;
-  const treesPerRow = layout[0].length;
+  // ---------- Pattern Preview ----------
+
+  const previewTitle = document.createElement("h3");
+  previewTitle.textContent = "Pattern Preview";
+  mapEl.appendChild(previewTitle);
+
+  const preview = buildMapView(
+    layout,
+    12,
+    40,
+    "orchard-map preview-map"
+  );
+
+  mapEl.appendChild(preview);
+
+  // ---------- Whole Orchard ----------
+
+  const overviewTitle = document.createElement("h3");
+  overviewTitle.textContent = "Whole Block Overview";
+  mapEl.appendChild(overviewTitle);
+
+  const overview = buildMapView(
+    layout,
+    layout.length,
+    layout[0].length,
+    "orchard-map overview-map"
+  );
+
+  mapEl.appendChild(overview);
+}
+
+function buildMapView(layout, maxRows, maxTrees, className) {
+
+  const rows = Math.min(layout.length, maxRows);
+  const treesPerRow = Math.min(layout[0].length, maxTrees);
 
   const orchardEl = document.createElement("div");
-  orchardEl.className = "orchard-map";
+  orchardEl.className = className;
 
   for (let treeIndex = 0; treeIndex < treesPerRow; treeIndex++) {
+
     const treeLine = document.createElement("div");
     treeLine.className = "tree-line";
 
     for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
+
       const tree = document.createElement("div");
-      tree.className = layout[rowIndex][treeIndex]
-        ? "tree dispenser"
-        : "tree";
+
+      tree.className =
+        layout[rowIndex][treeIndex]
+          ? "tree dispenser"
+          : "tree";
 
       treeLine.appendChild(tree);
     }
@@ -259,7 +296,7 @@ function renderMap(layout) {
     orchardEl.appendChild(treeLine);
   }
 
-  mapEl.appendChild(orchardEl);
+  return orchardEl;
 }
 
 function renderInstructions(plan, input) {
