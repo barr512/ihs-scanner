@@ -1,72 +1,165 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CT APP</title>
-  <link rel="stylesheet" href="style.css" />
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>CT APP</title>
+
+    <link rel="stylesheet"
+          href="style.css">
+
 </head>
+
 <body>
-  <main class="app">
+
+<main class="app">
+
     <section class="hero">
-      <div>
-        <p class="eyebrow">Apple Block Planning</p>
-        <h1>CT APP</h1>
-        <p class="subtitle">Create practical mating disruption dispenser patterns for apple blocks.</p>
-      </div>
+
+        <div>
+
+            <p class="eyebrow">
+                Apple Block Planning
+            </p>
+
+            <h1>CT APP</h1>
+
+            <p class="subtitle">
+                Create practical mating disruption dispenser patterns for apple orchards.
+            </p>
+
+        </div>
+
     </section>
 
     <section class="card">
-      <h2>Block Details</h2>
 
-      <label>
-        Block Name
-        <input id="blockName" type="text" value="North Block" />
-      </label>
-
-      <div class="grid">
-        <label>
-          Acres
-          <input id="acres" type="number" value="5" min="0.1" step="0.1" />
-        </label>
+        <h2>Block Details</h2>
 
         <label>
-          Rows
-          <input id="rows" type="number" value="20" min="1" />
+
+            Block Name
+
+            <input
+                id="blockName"
+                type="text"
+                value="North Block">
+
         </label>
 
-        <label>
-          Trees Per Row
-          <input id="treesPerRow" type="number" value="80" min="1" />
-        </label>
+        <div class="grid">
+                    <label>
 
-        <label>
-          Dispensers / Acre
-          <input id="rate" type="number" value="200" min="1" />
-        </label>
+                Acres
 
-        <label>
-          People Hanging
-          <input id="crewSize" type="number" value="1" min="1" />
-        </label>
-      </div>
+                <input
+                    id="acres"
+                    type="number"
+                    value="5"
+                    min="0.1"
+                    step="0.1">
 
-      <button id="generateBtn">Generate Plans</button>
+            </label>
+
+            <label>
+
+                Rows
+
+                <input
+                    id="rows"
+                    type="number"
+                    value="20"
+                    min="1">
+
+            </label>
+
+            <label>
+
+                Trees Per Row
+
+                <input
+                    id="treesPerRow"
+                    type="number"
+                    value="80"
+                    min="1">
+
+            </label>
+
+            <label>
+
+                Dispensers Per Acre
+
+                <input
+                    id="rate"
+                    type="number"
+                    value="200"
+                    min="1">
+
+            </label>
+
+            <label>
+
+                People Hanging
+
+                <input
+                    id="crewSize"
+                    type="number"
+                    value="1"
+                    min="1">
+
+            </label>
+
+        </div>
+
+        <button id="generateBtn">
+            Generate Plans
+        </button>
+
+    </section>
+      <section
+        id="summary"
+        class="card hidden">
     </section>
 
-    <section id="summary" class="card hidden"></section>
-
-    <section id="options" class="options"></section>
-
-    <section id="mapSection" class="card hidden">
-      <h2>Visual Schematic</h2>
-      <p id="selectedPlanText" class="muted"></p>
-      <div id="map" class="map"></div>
+    <section
+        id="options"
+        class="options">
     </section>
 
-    <section id="instructions" class="card hidden"></section>
-  </main>
+    <section
+        id="mapSection"
+        class="card hidden">
 
-  <script type="module" src="app.js"></script>
+        <h2>
+            Visual Schematic
+        </h2>
+
+        <p
+            id="selectedPlanText"
+            class="muted">
+        </p>
+
+        <div
+            id="map"
+            class="map">
+        </div>
+
+    </section>
+
+    <section
+        id="instructions"
+        class="card hidden">
+    </section>
+
+</main>
+
+<script src="app.js"></script>
+
 </body>
+
 </html>
