@@ -211,3 +211,9 @@ button:active {
     font-size: 2rem;
   }
 }
+.secondary-button {
+  background: #eef4eb;
+  color: var(--green-dark);
+  margin-bottom: 24px;
+  border: 1px solid var(--line);
+}
