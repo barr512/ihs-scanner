@@ -1,4 +1,4 @@
-import { getInputs } from "./modules/inputs.js";
+
 import { generatePlanOptions } from "./modules/planner.js";
 import { renderSummary, renderOptions, selectPlan } from "./modules/renderer.js";
 
