@@ -54,6 +54,11 @@ function showPlanScreen(plan) {
   optionsEl.classList.add("hidden");
 
   selectPlan(plan, currentInput);
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
 }
 function getBestPatterns(input) {
   const SQFT_PER_ACRE = 43560;
