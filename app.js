@@ -90,12 +90,14 @@ function getBestPatterns(input) {
       for (let offset of [0, Math.floor(treeInterval / 2)]) {
         const placements = [];
 
-        for (let row = 1; row <= input.rows; row++) {
-          if ((row - 1) % rowInterval !== 0) continue;
+        let treatedRowIndex = 0;
 
-          const rowOffset = row % 2 === 0 ? offset : 0;
+for (let row = 1; row <= input.rows; row++) {
+  if ((row - 1) % rowInterval !== 0) continue;
 
-          for (let idealTree = 1 + rowOffset; idealTree <= treesPerRow; idealTree += treeInterval) {
+  const rowOffset = treatedRowIndex % 2 === 0 ? 0 : offset;
+
+  for (let idealTree = 1 + rowOffset; idealTree <= treesPerRow; idealTree += treeInterval) {
             const closestTree = Math.max(
               1,
               Math.min(treesPerRow, Math.round(idealTree))
@@ -106,6 +108,7 @@ function getBestPatterns(input) {
               tree: closestTree
             });
           }
+  treatedRowIndex++;
         }
 
         const count = placements.length;
