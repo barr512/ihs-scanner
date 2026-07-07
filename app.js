@@ -104,8 +104,11 @@ function getBestPatterns(input) {
         }
 
         const count = placements.length;
-        const resultingRate = count / input.acres;
-        const rateDifference = Math.abs(count - targetDispensers);
+const resultingRate = count / input.acres;
+const rateDifference = Math.abs(count - targetDispensers);
+const percentOffTarget = rateDifference / targetDispensers;
+
+if (percentOffTarget > 0.03) continue;
 
         const areaPerDispenser =
           rowInterval *
