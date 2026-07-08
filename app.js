@@ -23,14 +23,15 @@ if (topBackBtn) {
 }
 function getInputs() {
   return {
-    acres: Number(document.getElementById("acres").value),
-    rows: Number(document.getElementById("rows").value),
-    rowSpacing: Number(document.getElementById("rowSpacing").value),
-    treeSpacing: Number(document.getElementById("treeSpacing").value),
-    targetRate: Number(document.getElementById("rate").value),
-    rowDirection: document.getElementById("rowDirection").value,
-    pressureEdge: document.getElementById("pressureEdge").value
-  };
+  acres: Number(document.getElementById("acres").value),
+  rows: Number(document.getElementById("rows").value),
+  rowSpacing: Number(document.getElementById("rowSpacing").value),
+  treeSpacing: Number(document.getElementById("treeSpacing").value),
+  targetRate: Number(document.getElementById("rate").value),
+  availableDispensers: Number(document.getElementById("availableDispensers").value) || null,
+  rowDirection: document.getElementById("rowDirection").value,
+  pressureEdge: document.getElementById("pressureEdge").value
+};
 }
 
 function showSetupScreen() {
@@ -132,7 +133,13 @@ function getBestPatterns(input) {
   const totalRowFeet = blockArea / input.rowSpacing;
   const rowLength = totalRowFeet / input.rows;
   const treesPerRow = Math.round(rowLength / input.treeSpacing);
-  const targetDispensers = Math.round(input.acres * input.targetRate);
+ const labelTargetDispensers = Math.round(input.acres * input.targetRate);
+
+const targetDispensers =
+  input.availableDispensers &&
+  input.availableDispensers < labelTargetDispensers
+    ? input.availableDispensers
+    : labelTargetDispensers;
   const targetAreaPerDispenser = SQFT_PER_ACRE / input.targetRate;
 
   const orchard = {
