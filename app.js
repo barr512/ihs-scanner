@@ -60,7 +60,42 @@ function showPlanScreen(plan) {
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
+function scoreCoverageQuality(placements, orchard, input) {
+  let totalNearestDistance = 0;
+  let worstNearestDistance = 0;
 
+  orchard.trees.forEach(tree => {
+    let nearestDistance = Infinity;
+
+    placements.forEach(place => {
+      const rowDistance =
+        Math.abs(tree.row - place.row) * input.rowSpacing;
+
+      const treeDistance =
+        Math.abs(tree.tree - place.tree) * input.treeSpacing;
+
+      const distance = Math.sqrt(
+        rowDistance ** 2 + treeDistance ** 2
+      );
+
+      nearestDistance = Math.min(nearestDistance, distance);
+    });
+
+    totalNearestDistance += nearestDistance;
+    worstNearestDistance = Math.max(worstNearestDistance, nearestDistance);
+  });
+
+  const averageNearestDistance =
+    totalNearestDistance / orchard.trees.length;
+
+  return {
+    averageNearestDistance,
+    worstNearestDistance,
+    coverageScore:
+      averageNearestDistance * 1 +
+      worstNearestDistance * 2
+  };
+}
 function getBestPatterns(input) {
   const SQFT_PER_ACRE = 43560;
 
@@ -126,7 +161,11 @@ function getBestPatterns(input) {
           input.rowSpacing *
           treeInterval *
           input.treeSpacing;
-
+const coverageQuality = scoreCoverageQuality(
+  placements,
+  orchard,
+  input
+);
         const coverageDifferencePercent =
           Math.abs(actualAreaPerDispenser - targetAreaPerDispenser) /
           targetAreaPerDispenser;
@@ -136,13 +175,19 @@ function getBestPatterns(input) {
         const crewEaseScore =
   rowInterval * -100 + treeInterval;
 
+const crewEaseScore =
+  rowInterval * -10 + treeInterval;
+
 const score =
-  coverageDifferencePercent * 10000 +
-  rateDifference * 1000 +
+  coverageQuality.coverageScore * 100 +
+  rateDifference * 100 +
   crewEaseScore +
   staggerBonus;
 
         candidatePatterns.push({
+         averageNearestDistance: coverageQuality.averageNearestDistance,
+worstNearestDistance: coverageQuality.worstNearestDistance,
+coverageScore: coverageQuality.coverageScore,
           rowInterval,
           treeInterval,
           offset,
