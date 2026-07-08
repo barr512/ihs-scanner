@@ -646,8 +646,46 @@ mapEl.appendChild(mapContext);
 }
 
 function buildMapView(layout, maxRows, maxTrees, className, input) {
-  const rows = Math.min(layout.length, maxRows);
-  const treesPerRow = Math.min(layout[0].length, maxTrees);
+  const totalRows = layout.length;
+  const totalTrees = layout[0].length;
+
+  const rows = Math.min(totalRows, maxRows);
+  const treesPerRow = Math.min(totalTrees, maxTrees);
+
+  let rowStartIndex = 0;
+  let treeStartIndex = 0;
+
+  if (input.pressureEdge === "south" && input.rowDirection === "north-south") {
+    treeStartIndex = Math.max(0, totalTrees - treesPerRow);
+  }
+
+  if (input.pressureEdge === "north" && input.rowDirection === "north-south") {
+    treeStartIndex = 0;
+  }
+
+  if (input.pressureEdge === "east" && input.rowDirection === "north-south") {
+    rowStartIndex = Math.max(0, totalRows - rows);
+  }
+
+  if (input.pressureEdge === "west" && input.rowDirection === "north-south") {
+    rowStartIndex = 0;
+  }
+
+  if (input.pressureEdge === "south" && input.rowDirection === "east-west") {
+    rowStartIndex = Math.max(0, totalRows - rows);
+  }
+
+  if (input.pressureEdge === "north" && input.rowDirection === "east-west") {
+    rowStartIndex = 0;
+  }
+
+  if (input.pressureEdge === "east" && input.rowDirection === "east-west") {
+    treeStartIndex = Math.max(0, totalTrees - treesPerRow);
+  }
+
+  if (input.pressureEdge === "west" && input.rowDirection === "east-west") {
+    treeStartIndex = 0;
+  }
 
   const wrapper = document.createElement("div");
   wrapper.className = "map-wrapper";
@@ -669,17 +707,16 @@ function buildMapView(layout, maxRows, maxTrees, className, input) {
   orchardEl.className = className;
 
   if (input.rowDirection === "east-west") {
-    for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
+    for (let rowIndex = rowStartIndex; rowIndex < rowStartIndex + rows; rowIndex++) {
       const treeLine = document.createElement("div");
       treeLine.className = "tree-line";
 
-      for (let treeIndex = 0; treeIndex < treesPerRow; treeIndex++) {
+      for (let treeIndex = treeStartIndex; treeIndex < treeStartIndex + treesPerRow; treeIndex++) {
         const tree = document.createElement("div");
 
-        tree.className =
-          layout[rowIndex][treeIndex]
-            ? "tree dispenser"
-            : "tree";
+        tree.className = layout[rowIndex][treeIndex]
+          ? "tree dispenser"
+          : "tree";
 
         treeLine.appendChild(tree);
       }
@@ -687,17 +724,16 @@ function buildMapView(layout, maxRows, maxTrees, className, input) {
       orchardEl.appendChild(treeLine);
     }
   } else {
-    for (let treeIndex = 0; treeIndex < treesPerRow; treeIndex++) {
+    for (let treeIndex = treeStartIndex; treeIndex < treeStartIndex + treesPerRow; treeIndex++) {
       const treeLine = document.createElement("div");
       treeLine.className = "tree-line";
 
-      for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
+      for (let rowIndex = rowStartIndex; rowIndex < rowStartIndex + rows; rowIndex++) {
         const tree = document.createElement("div");
 
-        tree.className =
-          layout[rowIndex][treeIndex]
-            ? "tree dispenser"
-            : "tree";
+        tree.className = layout[rowIndex][treeIndex]
+          ? "tree dispenser"
+          : "tree";
 
         treeLine.appendChild(tree);
       }
