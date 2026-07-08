@@ -292,7 +292,12 @@ coverageScore: coverageQuality.coverageScore,
 
   candidatePatterns
   .sort((a, b) => {
-    // 1. Best coverage fit first
+    // 1. Best actual spacing quality first
+    if (a.coverageScore !== b.coverageScore) {
+      return a.coverageScore - b.coverageScore;
+    }
+
+    // 2. Then best coverage fit
     if (a.coverageDifferencePercent !== b.coverageDifferencePercent) {
       return a.coverageDifferencePercent - b.coverageDifferencePercent;
     }
