@@ -238,6 +238,10 @@ return {
 }
 
 function generatePlans() {
+  console.log("BUTTON CLICKED");
+  alert("BUTTON CLICKED");
+
+  const input = getInputs();
   const input = getInputs();
 
   const engineResults = getBestPatterns(input);
