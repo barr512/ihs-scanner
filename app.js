@@ -779,9 +779,9 @@ function renderInstructions(plan, input) {
   const percentDifference = plan.percentRateDifference * 100;
 
   const extraDispensers =
-  input.inventoryIsLimited && plan.count < input.targetDispensers
-    ? input.targetDispensers - plan.count
-    : 0;
+    input.availableDispensers && plan.count < input.availableDispensers
+      ? input.availableDispensers - plan.count
+      : 0;
 
   instructionsEl.innerHTML = `
     <h2>Field Instructions</h2>
