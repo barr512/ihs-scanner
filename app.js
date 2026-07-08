@@ -355,7 +355,9 @@ function generatePlans() {
 
   const input = getInputs();
 
-
+input.inventoryIsLimited =
+  input.availableDispensers &&
+  input.availableDispensers < input.labelTargetDispensers;
   const engineResults = getBestPatterns(input);
 
   input.labelTargetDispensers = Math.round(input.acres * input.targetRate);
@@ -366,9 +368,7 @@ input.targetDispensers =
     ? input.availableDispensers
     : input.labelTargetDispensers;
 
-input.inventoryIsLimited =
-  input.availableDispensers &&
-  input.availableDispensers < input.labelTargetDispensers;
+
   input.targetAreaPerDispenser = 43560 / input.targetRate;
   input.estimatedRowLength = engineResults.orchard.rowLength;
   input.treesPerRow = engineResults.orchard.treesPerRow;
