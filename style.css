@@ -262,3 +262,31 @@ button:active {
 .overview-map .tree.dispenser {
   box-shadow: none;
 }
+.map-wrapper {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.map-middle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.map-direction {
+  font-weight: 800;
+  color: #334155;
+  font-size: 0.85rem;
+}
+
+.side-label {
+  width: 1rem;
+  text-align: center;
+}
+
+.north-label,
+.south-label {
+  text-align: center;
+}
