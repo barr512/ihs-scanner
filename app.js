@@ -249,7 +249,16 @@ function generatePlans() {
 
 
   const engineResults = getBestPatterns(input);
-
+console.log("Pressure edge:", input.pressureEdge);
+console.log("First pattern first placement:", engineResults.patterns[0].placements[0]);
+alert(
+  "Pressure edge: " +
+  input.pressureEdge +
+  "\nFirst placement row: " +
+  engineResults.patterns[0].placements[0].row +
+  "\nFirst placement tree: " +
+  engineResults.patterns[0].placements[0].tree
+);
   input.targetDispensers = Math.round(input.acres * input.targetRate);
   input.targetAreaPerDispenser = 43560 / input.targetRate;
   input.estimatedRowLength = engineResults.orchard.rowLength;
