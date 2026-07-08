@@ -354,7 +354,17 @@ function generatePlans() {
 
   const engineResults = getBestPatterns(input);
 
-  input.targetDispensers = Math.round(input.acres * input.targetRate);
+  input.labelTargetDispensers = Math.round(input.acres * input.targetRate);
+
+input.targetDispensers =
+  input.availableDispensers &&
+  input.availableDispensers < input.labelTargetDispensers
+    ? input.availableDispensers
+    : input.labelTargetDispensers;
+
+input.inventoryIsLimited =
+  input.availableDispensers &&
+  input.availableDispensers < input.labelTargetDispensers;
   input.targetAreaPerDispenser = 43560 / input.targetRate;
   input.estimatedRowLength = engineResults.orchard.rowLength;
   input.treesPerRow = engineResults.orchard.treesPerRow;
@@ -450,7 +460,13 @@ function renderSummary(input, totalTrees) {
   summaryEl.classList.remove("hidden");
 
   summaryEl.innerHTML = `
-    <h2>Choose a Deployment Pattern</h2>
+   <h2>Choose a Deployment Pattern</h2>
+
+${
+  input.inventoryIsLimited
+    ? `<p class="muted"><strong>Limited inventory mode:</strong> Available dispensers are below the label-rate target. These patterns show the best practical distribution for the amount entered.</p>`
+    : ``
+}
 
     <div class="stats">
       <div class="stat">
