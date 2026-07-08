@@ -9,7 +9,7 @@ const selectedPlanText = document.getElementById("selectedPlanText");
 const setupScreen = document.getElementById("setupScreen");
 const resultsScreen = document.getElementById("resultsScreen");
 const backBtn = document.getElementById("backBtn");
-
+const topBackBtn = document.getElementById("topBackBtn");
 let currentInput = null;
 let currentPlans = [];
 
@@ -18,7 +18,9 @@ generateBtn.addEventListener("click", generatePlans);
 if (backBtn) {
   backBtn.addEventListener("click", showSetupScreen);
 }
-
+if (topBackBtn) {
+  topBackBtn.addEventListener("click", showSetupScreen);
+}
 function getInputs() {
   return {
     acres: Number(document.getElementById("acres").value),
