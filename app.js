@@ -26,6 +26,7 @@ function getInputs() {
     rowSpacing: Number(document.getElementById("rowSpacing").value),
     treeSpacing: Number(document.getElementById("treeSpacing").value),
     targetRate: Number(document.getElementById("rate").value),
+    rowDirection: document.getElementById("rowDirection").value,
     pressureEdge: document.getElementById("pressureEdge").value
   };
 }
