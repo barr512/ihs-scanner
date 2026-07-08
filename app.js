@@ -265,15 +265,28 @@ coverageScore: coverageQuality.coverageScore,
   const seen = new Set();
 
   candidatePatterns
-   .sort((a, b) => {
-  const scoreDifference = a.score - b.score;
+  .sort((a, b) => {
+    // 1. Best coverage fit first
+    if (a.coverageDifferencePercent !== b.coverageDifferencePercent) {
+      return a.coverageDifferencePercent - b.coverageDifferencePercent;
+    }
 
-  if (Math.abs(scoreDifference) < 1) {
-    return b.offset - a.offset;
-  }
+    // 2. Then closest dispenser rate/count
+    const rateDifferenceA = Math.abs(a.ratePerAcre - targetRate);
+    const rateDifferenceB = Math.abs(b.ratePerAcre - targetRate);
 
-  return scoreDifference;
-})
+    if (rateDifferenceA !== rateDifferenceB) {
+      return rateDifferenceA - rateDifferenceB;
+    }
+
+    // 3. Prefer staggered/offset patterns when otherwise close
+    if (a.offset !== b.offset) {
+      return b.offset - a.offset;
+    }
+
+    // 4. Final tie-breaker: overall score
+    return a.score - b.score;
+  });
     .forEach(pattern => {
       const key = `${pattern.rowInterval}-${pattern.treeInterval}-${pattern.offset}-${pattern.count}`;
 
