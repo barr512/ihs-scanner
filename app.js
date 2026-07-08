@@ -416,17 +416,40 @@ function renderMap(layout) {
   mapEl.appendChild(preview);
 
   const overviewTitle = document.createElement("h3");
-  overviewTitle.textContent = "Whole Block Overview";
-  mapEl.appendChild(overviewTitle);
+overviewTitle.textContent = "Whole Block Overview";
+mapEl.appendChild(overviewTitle);
 
-  const overview = buildMapView(
-    layout,
-    layout.length,
-    layout[0].length,
-    "orchard-map overview-map"
-  );
+const expandBtn = document.createElement("button");
+expandBtn.className = "secondary-button";
+expandBtn.textContent = "Show Whole Block Map";
+mapEl.appendChild(expandBtn);
 
-  mapEl.appendChild(overview);
+let overviewVisible = false;
+let overview = null;
+
+expandBtn.addEventListener("click", () => {
+  overviewVisible = !overviewVisible;
+
+  if (overviewVisible) {
+    expandBtn.textContent = "Hide Whole Block Map";
+
+    overview = buildMapView(
+      layout,
+      layout.length,
+      layout[0].length,
+      "orchard-map overview-map"
+    );
+
+    mapEl.appendChild(overview);
+  } else {
+    expandBtn.textContent = "Show Whole Block Map";
+
+    if (overview) {
+      overview.remove();
+      overview = null;
+    }
+  }
+});
 }
 
 function buildMapView(layout, maxRows, maxTrees, className) {
