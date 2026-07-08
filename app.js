@@ -137,10 +137,16 @@ function getBestPatterns(input) {
         const placements = [];
         let treatedRowIndex = 0;
 
-        for (let row = 1; row <= input.rows; row++) {
-          if ((row - 1) % rowInterval !== 0) continue;
+        const rowStart = input.pressureEdge === "south" ? input.rows : 1;
+const rowEnd = input.pressureEdge === "south" ? 1 : input.rows;
+const rowStep = input.pressureEdge === "south" ? -1 : 1;
 
-          const rowOffset = treatedRowIndex % 2 === 0 ? 0 : offset;
+for (let row = rowStart; input.pressureEdge === "south" ? row >= rowEnd : row <= rowEnd; row += rowStep) {
+  const rowDistanceFromPressureEdge = Math.abs(row - rowStart);
+
+  if (rowDistanceFromPressureEdge % rowInterval !== 0) continue;
+
+  const rowOffset = treatedRowIndex % 2 === 0 ? 0 : offset;
 
           for (let idealTree = 1 + rowOffset; idealTree <= treesPerRow; idealTree += treeInterval) {
             const closestTree = Math.max(
