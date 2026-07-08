@@ -102,7 +102,9 @@ function scoreCoverageQuality(placements, orchard, input) {
   const rowUseSpread = Math.max(...rowCounts.values()) - Math.min(...rowCounts.values());
   const treeUseSpread = Math.max(...treeCounts.values()) - Math.min(...treeCounts.values());
 
-  const clusterPenalty = rowUseSpread + treeUseSpread;
+  const clusterPenalty =
+  rowUseSpread * 10 +
+  treeUseSpread * 25;
 
   const coverageScore =
     averageNearestDistance * 1 +
