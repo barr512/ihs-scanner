@@ -325,15 +325,15 @@ const targetDispensers = inventoryIsLimited
         return rateDifferenceA - rateDifferenceB;
       }
 
-      // 3. Then actual spacing quality
-      if (a.coverageScore !== b.coverageScore) {
-        return a.coverageScore - b.coverageScore;
-      }
+      // 3. Prefer staggered layouts if coverage and count are tied
+if (a.offset !== b.offset) {
+  return b.offset - a.offset;
+}
 
-      // 4. Prefer staggered layouts if still tied
-      if (a.offset !== b.offset) {
-        return b.offset - a.offset;
-      }
+// 4. Then actual spacing quality
+if (a.coverageScore !== b.coverageScore) {
+  return a.coverageScore - b.coverageScore;
+}
 
       return a.score - b.score;
     })
@@ -776,6 +776,10 @@ function buildMapView(layout, maxRows, maxTrees, className, input) {
 function renderInstructions(plan, input) {
   const difference = plan.count - input.targetDispensers;
   const percentDifference = plan.percentRateDifference * 100;
+  const extraDispensers =
+  input.availableDispensers && plan.count < input.availableDispensers
+    ? input.availableDispensers - plan.count
+    : 0;
 const extraDispensers =
   input.inventoryIsLimited && plan.count < input.targetDispensers
     ? input.targetDispensers - plan.count
@@ -788,6 +792,11 @@ const extraDispensers =
     <ul class="instructions-list">
       <li>Target dispensers: ${input.targetDispensers}</li>
       <li>Pattern uses: ${plan.count}</li>
+      ${
+  extraDispensers > 0
+    ? `<li>Use the remaining ${extraDispensers} dispenser${extraDispensers === 1 ? "" : "s"} on the riskiest border or highest-pressure edge.</li>`
+    : ``
+}
       <li>Difference from target: ${difference > 0 ? "+" : ""}${difference}</li>
       ${
   extraDispensers > 0
