@@ -97,6 +97,77 @@ function scoreCoverageQuality(placements, orchard, input) {
       worstNearestDistance * 2
   };
 }
+function addPressureEdgeAnchors(placements, orchard, input, rowInterval, treeInterval) {
+  if (input.pressureEdge === "none") return placements;
+
+  const existing = new Set(
+    placements.map(place => `${place.row}-${place.tree}`)
+  );
+
+  function addPlacement(row, tree) {
+    const key = `${row}-${tree}`;
+
+    if (!existing.has(key)) {
+      existing.add(key);
+      placements.push({ row, tree });
+    }
+  }
+
+  const rowsRunNorthSouth = input.rowDirection === "north-south";
+
+  if (rowsRunNorthSouth) {
+    if (input.pressureEdge === "north") {
+      for (let row = 1; row <= orchard.rows; row += rowInterval) {
+        addPlacement(row, 1);
+      }
+    }
+
+    if (input.pressureEdge === "south") {
+      for (let row = 1; row <= orchard.rows; row += rowInterval) {
+        addPlacement(row, orchard.treesPerRow);
+      }
+    }
+
+    if (input.pressureEdge === "west") {
+      for (let tree = 1; tree <= orchard.treesPerRow; tree += treeInterval) {
+        addPlacement(1, tree);
+      }
+    }
+
+    if (input.pressureEdge === "east") {
+      for (let tree = 1; tree <= orchard.treesPerRow; tree += treeInterval) {
+        addPlacement(orchard.rows, tree);
+      }
+    }
+  } else {
+    if (input.pressureEdge === "north") {
+      for (let tree = 1; tree <= orchard.treesPerRow; tree += treeInterval) {
+        addPlacement(1, tree);
+      }
+    }
+
+    if (input.pressureEdge === "south") {
+      for (let tree = 1; tree <= orchard.treesPerRow; tree += treeInterval) {
+        addPlacement(orchard.rows, tree);
+      }
+    }
+
+    if (input.pressureEdge === "west") {
+      for (let row = 1; row <= orchard.rows; row += rowInterval) {
+        addPlacement(row, 1);
+      }
+    }
+
+    if (input.pressureEdge === "east") {
+      for (let row = 1; row <= orchard.rows; row += rowInterval) {
+        addPlacement(row, orchard.treesPerRow);
+      }
+    }
+  }
+
+  return placements;
+}
+
 function getBestPatterns(input) {
   const SQFT_PER_ACRE = 43560;
 
@@ -202,7 +273,15 @@ for (
   treatedRowIndex++;
 }
 
-        const count = placements.length;
+        addPressureEdgeAnchors(
+  placements,
+  orchard,
+  input,
+  rowInterval,
+  treeInterval
+);
+
+const count = placements.length;
         if (count === 0) continue;
 
         const resultingRate = count / input.acres;
