@@ -136,10 +136,13 @@ function getBestPatterns(input) {
 
   const labelTargetDispensers = Math.round(input.acres * input.targetRate);
 
-  const targetDispensers =
-    input.inventoryIsLimited
-      ? input.targetDispensers
-      : labelTargetDispensers;
+const inventoryIsLimited =
+  input.availableDispensers &&
+  input.availableDispensers < labelTargetDispensers;
+
+const targetDispensers = inventoryIsLimited
+  ? input.availableDispensers
+  : labelTargetDispensers;
 
   const targetAreaPerDispenser = SQFT_PER_ACRE / input.targetRate;
 
@@ -243,18 +246,18 @@ function getBestPatterns(input) {
 
         // Limited inventory rule:
         // never recommend a pattern that uses more dispensers than the grower has.
-        if (input.inventoryIsLimited && count > targetDispensers) continue;
+        if (inventoryIsLimited && count > targetDispensers) continue;
 
         const resultingRate = count / input.acres;
         const rateDifference = Math.abs(count - targetDispensers);
         const percentOffTarget = rateDifference / targetDispensers;
 
         // Normal label-rate mode allows up to 10% off target.
-        if (!input.inventoryIsLimited && percentOffTarget > 0.10) continue;
+        if (!inventoryIsLimited && percentOffTarget > 0.10) continue;
 
         // Limited inventory mode allows lower repeatable patterns,
         // because leftovers can be placed on the highest-risk border.
-        if (input.inventoryIsLimited && count < targetDispensers * 0.75) continue;
+        if (inventoryIsLimited && count < targetDispensers * 0.75) continue;
 
         const actualAreaPerDispenser =
           rowInterval *
