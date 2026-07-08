@@ -134,18 +134,35 @@ let rowStart = 1;
 let rowEnd = input.rows;
 let rowStep = 1;
 
-if (
-  (rowsRunNorthSouth && input.pressureEdge === "south") ||
-  (!rowsRunNorthSouth && input.pressureEdge === "east")
-) {
-  rowStart = input.rows;
-  rowEnd = 1;
-  rowStep = -1;
-}
+let treeStart = 1;
+let treeEnd = treesPerRow;
+let treeStep = treeInterval;
 
-const treeStartFromPressure =
-  (rowsRunNorthSouth && input.pressureEdge === "west") ||
-  (!rowsRunNorthSouth && input.pressureEdge === "south");
+if (rowsRunNorthSouth) {
+  if (input.pressureEdge === "south") {
+    rowStart = input.rows;
+    rowEnd = 1;
+    rowStep = -1;
+  }
+
+  if (input.pressureEdge === "west") {
+    treeStart = treesPerRow;
+    treeEnd = 1;
+    treeStep = -treeInterval;
+  }
+} else {
+  if (input.pressureEdge === "east") {
+    rowStart = input.rows;
+    rowEnd = 1;
+    rowStep = -1;
+  }
+
+  if (input.pressureEdge === "south") {
+    treeStart = treesPerRow;
+    treeEnd = 1;
+    treeStep = -treeInterval;
+  }
+}
 
 for (
   let row = rowStart;
@@ -158,38 +175,28 @@ for (
 
   const rowOffset = treatedRowIndex % 2 === 0 ? 0 : offset;
 
-  if (treeStartFromPressure) {
-    for (
-      let idealTree = treesPerRow - rowOffset;
-      idealTree >= 1;
-      idealTree -= treeInterval
-    ) {
-      const closestTree = Math.max(
-        1,
-        Math.min(treesPerRow, Math.round(idealTree))
-      );
+  let adjustedTreeStart = treeStart;
 
-      placements.push({
-        row,
-        tree: closestTree
-      });
-    }
+  if (treeStep > 0) {
+    adjustedTreeStart = treeStart + rowOffset;
   } else {
-    for (
-      let idealTree = 1 + rowOffset;
-      idealTree <= treesPerRow;
-      idealTree += treeInterval
-    ) {
-      const closestTree = Math.max(
-        1,
-        Math.min(treesPerRow, Math.round(idealTree))
-      );
+    adjustedTreeStart = treeStart - rowOffset;
+  }
 
-      placements.push({
-        row,
-        tree: closestTree
-      });
-    }
+  for (
+    let idealTree = adjustedTreeStart;
+    treeStep > 0 ? idealTree <= treeEnd : idealTree >= treeEnd;
+    idealTree += treeStep
+  ) {
+    const closestTree = Math.max(
+      1,
+      Math.min(treesPerRow, Math.round(idealTree))
+    );
+
+    placements.push({
+      row,
+      tree: closestTree
+    });
   }
 
   treatedRowIndex++;
