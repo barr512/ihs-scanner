@@ -499,8 +499,17 @@ function renderMap(layout, input) {
   mapEl.innerHTML = "";
 
   const previewTitle = document.createElement("h3");
-  previewTitle.textContent = "Pattern Preview";
-  mapEl.appendChild(previewTitle);
+previewTitle.textContent = "Pattern Preview";
+mapEl.appendChild(previewTitle);
+
+const mapContext = document.createElement("p");
+mapContext.className = "muted";
+mapContext.innerHTML = `
+  Rows: <strong>${input.rowDirection === "east-west" ? "East–West" : "North–South"}</strong>
+  <br>
+  Highest pressure edge: <strong>${input.pressureEdge === "none" ? "None" : input.pressureEdge.toUpperCase()}</strong>
+`;
+mapEl.appendChild(mapContext);
 
   const preview = buildMapView(
     layout,
