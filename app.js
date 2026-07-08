@@ -14,7 +14,7 @@ let currentInput = null;
 let currentPlans = [];
 
 generateBtn.addEventListener("click", generatePlans);
-
+alert("app.js loaded");
 if (backBtn) {
   backBtn.addEventListener("click", showSetupScreen);
 }
