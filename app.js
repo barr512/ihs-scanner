@@ -172,7 +172,6 @@ const coverageQuality = scoreCoverageQuality(
 
         const staggerBonus = offset > 0 ? -500 : 0;
 
-        const crewEaseScore =
 
 const crewEaseScore =
   rowInterval * -10 + treeInterval;
@@ -242,7 +241,7 @@ function generatePlans() {
   alert("BUTTON CLICKED");
 
   const input = getInputs();
-  const input = getInputs();
+
 
   const engineResults = getBestPatterns(input);
 
