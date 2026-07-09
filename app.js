@@ -20,77 +20,74 @@ const products = {
     min: 32,
     max: 36,
     defaultRate: 32,
-    unit: "dispensers per acre"
-    pestCategory: "CM"
+    unit: "dispensers per acre",
+    pestCategory: "cm"
   },
   "cmda-combo-pp": {
     name: "CIDETRAK CMDA COMBO PP",
     min: 200,
     max: 400,
     defaultRate: 200,
-    unit: "dispensers per acre"
-    pestCategory: "CM"
+    unit: "dispensers per acre",
+    pestCategory: "cm"
   },
   "cmda-ofm-meso": {
     name: "CIDETRAK CMDA + OFM MESO",
     min: 32,
     max: 38,
     defaultRate: 38,
-    unit: "dispensers per acre"
-    pestCategory: "CM & OFM"
+    unit: "dispensers per acre",
+    pestCategory: "cm-ofm"
   },
   "cm-ofm-combo-meso": {
     name: "CIDETRAK CM-OFM COMBO MESO",
     min: 32,
     max: 36,
     defaultRate: 32,
-    unit: "dispensers per acre"
-    pestCategory: "CM & OFM"
+    unit: "dispensers per acre",
+    pestCategory: "cm-ofm"
   },
   "cm-ofm-combo-pp": {
     name: "CIDETRAK CM-OFM COMBO PP",
     min: 200,
     max: 440,
     defaultRate: 200,
-    unit: "dispensers per acre"
-    pestCategory: "CM & OFM"
+    unit: "dispensers per acre",
+    pestCategory: "cm-ofm"
   },
   "cmda-lr-dual-meso": {
     name: "CIDETRAK CMDA + LR DUAL MESO",
     min: 32,
     max: 36,
     defaultRate: 32,
-    unit: "dispensers per acre"
-    pestCategory: "CM & OBLR"
+    unit: "dispensers per acre",
+    pestCategory: "cm-oblr"
   },
   "ofm-l-meso": {
     name: "CIDETRAK OFM-L MESO",
     min: 32,
     max: 35,
     defaultRate: 32,
-    unit: "dispensers per acre"
-    pestCategory: "OFM"
+    unit: "dispensers per acre",
+    pestCategory: "ofm"
   },
   "ofm-l-pp": {
     name: "CIDETRAK OFM-L PP",
     min: 100,
     max: 200,
     defaultRate: 170,
-    unit: "dispensers per acre"
-    pestCategory: "OFM"
+    unit: "dispensers per acre",
+    pestCategory: "ofm"
   },
   "lr-meso": {
     name: "CIDETRAK LR MESO",
     min: 32,
     max: 36,
     defaultRate: 32,
-    unit: "dispensers per acre"
-    pestCategory: "OBLR"
-  
-  
+    unit: "dispensers per acre",
+    pestCategory: "oblr"
   }
 };
-
 if (productSelect && rateInput) {
   productSelect.addEventListener("change", () => {
     const selectedProduct = products[productSelect.value];
