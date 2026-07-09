@@ -685,10 +685,10 @@ function describePattern(plan) {
   if (plan.offset > 0) {
     const startTree = 1 + plan.offset;
 
-    return `Place on ${treeText} in ${rowText}. Start the first treated row on Tree 1. Start the next treated row on Tree ${startTree}, then continue alternating those starting positions through the block.`;
+    return `Place on ${treeText} in ${rowText}. Start the first treated row on Tree 1 from the selected highest-pressure edge. Start the next treated row on Tree ${startTree} from that same edge, then continue alternating those starting positions through the block.`;
   }
 
-  return `Place on ${treeText} in ${rowText}, starting on Tree 1.`;
+  return `Place on ${treeText} in ${rowText}, starting on Tree 1 from the selected highest-pressure edge.`;
 }
 function selectPlan(plan, input) {
   mapSection.classList.remove("hidden");
