@@ -27,7 +27,7 @@ const products = {
     name: "CIDETRAK CMDA COMBO PP",
     min: 200,
     max: 400,
-    defaultRate: 200,
+    defaultRate: 280,
     unit: "dispensers per acre",
     pestCategory: "cm"
   },
