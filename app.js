@@ -140,7 +140,12 @@ if (productSelect && rateInput) {
 let currentInput = null;
 let currentPlans = [];
 
-generateBtn.addEventListener("click", generatePlans);
+if (generateBtn) {
+  generateBtn.addEventListener("click", event => {
+    event.preventDefault();
+    generatePlans();
+  });
+}
 
 if (backBtn) {
   backBtn.addEventListener("click", showSetupScreen);
@@ -708,9 +713,25 @@ function getBestPatterns(input) {
   };
 }
 function generatePlans() {
-  
-
   const input = getInputs();
+
+  if (
+    !Number.isFinite(input.acres) ||
+    input.acres <= 0 ||
+    !Number.isFinite(input.rows) ||
+    input.rows <= 0 ||
+    !Number.isFinite(input.rowSpacing) ||
+    input.rowSpacing <= 0 ||
+    !Number.isFinite(input.treeSpacing) ||
+    input.treeSpacing <= 0 ||
+    !Number.isFinite(input.targetRate) ||
+    input.targetRate <= 0
+  ) {
+    alert(
+      "Please enter acreage, number of rows, row spacing, tree spacing, and dispenser rate before generating plans."
+    );
+    return;
+  }
 
 input.labelTargetDispensers =
   Math.round(input.acres * input.targetRate);
