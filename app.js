@@ -214,44 +214,69 @@ function showPlanScreen(plan) {
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
-function scoreCoverageQuality(placements, orchard, input) {
-  if (!placements.length || !orchard.trees.length) {
+function scoreCoverageQuality(
+  placements,
+  orchard,
+  input
+) {
+  if (
+    !placements.length ||
+    !orchard.trees.length
+  ) {
     return {
       averageNearestDistance: Infinity,
       worstNearestDistance: Infinity,
+      percentile90: Infinity,
+      percentile95: Infinity,
+      distanceSpread: Infinity,
+      closestDispenserDistance: 0,
       clusterPenalty: Infinity,
       gapPenalty: Infinity,
       coverageScore: Infinity,
-      coverageUniformity: 0
+      coverageUniformity: 0,
+      passesSpacingAudit: false
     };
   }
 
   /*
-    Store dispenser tree positions by orchard row.
+    Store dispenser positions by orchard row.
 
-    This lets the app check every tree in the orchard
-    without comparing every tree to every dispenser.
+    This allows the engine to survey the completed
+    whole-block layout instead of judging only the
+    interval recipe.
   */
   const placementsByRow = new Map();
 
   placements.forEach(place => {
-    if (!placementsByRow.has(place.row)) {
-      placementsByRow.set(place.row, []);
+    if (
+      !placementsByRow.has(place.row)
+    ) {
+      placementsByRow.set(
+        place.row,
+        []
+      );
     }
 
-    placementsByRow.get(place.row).push(place.tree);
+    placementsByRow
+      .get(place.row)
+      .push(place.tree);
   });
 
-  placementsByRow.forEach(treePositions => {
-    treePositions.sort((a, b) => a - b);
-  });
+  placementsByRow.forEach(
+    treePositions => {
+      treePositions.sort(
+        (a, b) => a - b
+      );
+    }
+  );
 
   const treatedRowNumbers = [
     ...placementsByRow.keys()
   ].sort((a, b) => a - b);
 
   /*
-    Find the nearest dispenser position in one row.
+    Find the closest dispenser position within
+    one orchard row.
   */
   function nearestTreeDistance(
     sortedTreePositions,
@@ -259,7 +284,8 @@ function scoreCoverageQuality(placements, orchard, input) {
     excludeExactMatch = false
   ) {
     let low = 0;
-    let high = sortedTreePositions.length;
+    let high =
+      sortedTreePositions.length;
 
     while (low < high) {
       const middle = Math.floor(
@@ -276,7 +302,8 @@ function scoreCoverageQuality(placements, orchard, input) {
       }
     }
 
-    let nearestDifference = Infinity;
+    let nearestDifference =
+      Infinity;
 
     const indexesToCheck = [
       low - 2,
@@ -288,7 +315,8 @@ function scoreCoverageQuality(placements, orchard, input) {
     indexesToCheck.forEach(index => {
       if (
         index < 0 ||
-        index >= sortedTreePositions.length
+        index >=
+          sortedTreePositions.length
       ) {
         return;
       }
@@ -316,16 +344,17 @@ function scoreCoverageQuality(placements, orchard, input) {
   }
 
   /*
-    Check every orchard tree.
+    Survey every orchard tree and measure its
+    physical distance to the nearest dispenser.
 
-    This catches gaps and uneven bands anywhere in
-    the complete block rather than sampling only part
-    of the orchard.
+    This exposes open areas anywhere in the block.
   */
-  const nearestCoverageDistances = [];
+  const nearestCoverageDistances =
+    [];
 
   orchard.trees.forEach(tree => {
-    let nearestDistance = Infinity;
+    let nearestDistance =
+      Infinity;
 
     treatedRowNumbers.forEach(
       dispenserRow => {
@@ -336,11 +365,10 @@ function scoreCoverageQuality(placements, orchard, input) {
           ) *
           input.rowSpacing;
 
-        /*
-          A farther row cannot improve the current
-          nearest distance.
-        */
-        if (rowDistance > nearestDistance) {
+        if (
+          rowDistance >
+          nearestDistance
+        ) {
           return;
         }
 
@@ -352,7 +380,11 @@ function scoreCoverageQuality(placements, orchard, input) {
             tree.tree
           );
 
-        if (!Number.isFinite(treeDifference)) {
+        if (
+          !Number.isFinite(
+            treeDifference
+          )
+        ) {
           return;
         }
 
@@ -392,13 +424,15 @@ function scoreCoverageQuality(placements, orchard, input) {
 
   const worstNearestDistance =
     nearestCoverageDistances[
-      nearestCoverageDistances.length - 1
+      nearestCoverageDistances.length -
+      1
     ];
 
   const percentile90 =
     nearestCoverageDistances[
       Math.min(
-        nearestCoverageDistances.length - 1,
+        nearestCoverageDistances.length -
+          1,
         Math.floor(
           nearestCoverageDistances.length *
           0.90
@@ -409,7 +443,8 @@ function scoreCoverageQuality(placements, orchard, input) {
   const percentile95 =
     nearestCoverageDistances[
       Math.min(
-        nearestCoverageDistances.length - 1,
+        nearestCoverageDistances.length -
+          1,
         Math.floor(
           nearestCoverageDistances.length *
           0.95
@@ -430,11 +465,12 @@ function scoreCoverageQuality(placements, orchard, input) {
     nearestCoverageDistances.length;
 
   const distanceSpread =
-    Math.sqrt(distanceVariance);
+    Math.sqrt(
+      distanceVariance
+    );
 
   /*
-    The square root of expected coverage area gives
-    a useful physical reference for expected spacing.
+    Expected physical spacing for the selected rate.
   */
   const expectedSpacing =
     Math.sqrt(
@@ -442,10 +478,6 @@ function scoreCoverageQuality(placements, orchard, input) {
       input.targetRate
     );
 
-  /*
-    Penalize orchard trees that are much farther than
-    expected from a dispenser.
-  */
   const preferredMaximumCoverageDistance =
     expectedSpacing * 0.75;
 
@@ -472,18 +504,21 @@ function scoreCoverageQuality(placements, orchard, input) {
     nearestCoverageDistances.length;
 
   /*
-    Check every dispenser's nearest neighboring
-    dispenser. This detects clusters and rows that
-    periodically line up too closely.
+    Survey every dispenser and measure its physical
+    distance to the nearest other dispenser.
+
+    This exposes clusters anywhere in the block.
   */
   const minimumPreferredDispenserDistance =
     expectedSpacing * 0.55;
 
   let clusterPenalty = 0;
-  let closestDispenserDistance = Infinity;
+  let closestDispenserDistance =
+    Infinity;
 
   placements.forEach(place => {
-    let nearestOtherDispenser = Infinity;
+    let nearestOtherDispenser =
+      Infinity;
 
     treatedRowNumbers.forEach(
       dispenserRow => {
@@ -510,7 +545,11 @@ function scoreCoverageQuality(placements, orchard, input) {
             dispenserRow === place.row
           );
 
-        if (!Number.isFinite(treeDifference)) {
+        if (
+          !Number.isFinite(
+            treeDifference
+          )
+        ) {
           return;
         }
 
@@ -524,17 +563,19 @@ function scoreCoverageQuality(placements, orchard, input) {
             distanceAlongRow ** 2
           );
 
-        nearestOtherDispenser = Math.min(
-          nearestOtherDispenser,
-          physicalDistance
-        );
+        nearestOtherDispenser =
+          Math.min(
+            nearestOtherDispenser,
+            physicalDistance
+          );
       }
     );
 
-    closestDispenserDistance = Math.min(
-      closestDispenserDistance,
-      nearestOtherDispenser
-    );
+    closestDispenserDistance =
+      Math.min(
+        closestDispenserDistance,
+        nearestOtherDispenser
+      );
 
     if (
       nearestOtherDispenser <
@@ -554,12 +595,9 @@ function scoreCoverageQuality(placements, orchard, input) {
     placements.length;
 
   /*
-    Lower is better.
+    Score surviving patterns.
 
-    Average distance measures general coverage.
-    The 90th, 95th and worst distances expose gaps.
-    Distance spread exposes uneven distribution.
-    Cluster penalty catches dispensers placed too close.
+    Lower is better.
   */
   const coverageScore =
     averageNearestDistance +
@@ -570,15 +608,56 @@ function scoreCoverageQuality(placements, orchard, input) {
     gapPenalty * 300 +
     clusterPenalty * 400;
 
-  const coverageUniformity = Math.max(
-    0,
-    100 -
-    (
-      coverageScore /
-      expectedSpacing
-    ) *
-    8
-  );
+  const coverageUniformity =
+    Math.max(
+      0,
+      100 -
+      (
+        coverageScore /
+        expectedSpacing
+      ) *
+      8
+    );
+
+  /*
+    Final whole-block spacing audit.
+
+    The engine surveys the completed placement,
+    regardless of which intervals or starts created it.
+
+    A pattern must pass all of these limits before
+    it can be accepted and ranked.
+  */
+  const minimumAllowedNeighborDistance =
+    expectedSpacing * 0.45;
+
+  const maximumAllowed95thDistance =
+    expectedSpacing * 0.80;
+
+  const maximumAllowedWorstDistance =
+    expectedSpacing * 1.00;
+
+  const maximumAllowedClusterPenalty =
+    0.08;
+
+  const maximumAllowedGapPenalty =
+    0.08;
+
+  const passesSpacingAudit =
+    closestDispenserDistance >=
+      minimumAllowedNeighborDistance &&
+
+    percentile95 <=
+      maximumAllowed95thDistance &&
+
+    worstNearestDistance <=
+      maximumAllowedWorstDistance &&
+
+    clusterPenalty <=
+      maximumAllowedClusterPenalty &&
+
+    gapPenalty <=
+      maximumAllowedGapPenalty;
 
   return {
     averageNearestDistance,
@@ -590,7 +669,8 @@ function scoreCoverageQuality(placements, orchard, input) {
     clusterPenalty,
     gapPenalty,
     coverageScore,
-    coverageUniformity
+    coverageUniformity,
+    passesSpacingAudit
   };
 }
 function buildRepeatingTreePattern(
