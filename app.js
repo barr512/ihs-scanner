@@ -798,9 +798,34 @@ function getBestPatterns(input) {
     Every displayed pattern must be staggered.
     Pattern A and Pattern B cannot begin on the same tree.
   */
-  if (patternAStart === patternBStart) {
-    continue;
-  }
+ /*
+  Require a meaningful stagger.
+
+  Different starting trees are not enough.
+  Pattern A and Pattern B must begin far enough
+  apart to avoid nearly straight alignment.
+*/
+const smallerInterval = Math.min(
+  patternAInterval,
+  patternBInterval
+);
+
+const startSeparation = Math.abs(
+  patternAStart -
+  patternBStart
+);
+
+const minimumStaggerSeparation = Math.max(
+  2,
+  Math.floor(smallerInterval * 0.3)
+);
+
+if (
+  startSeparation <
+  minimumStaggerSeparation
+) {
+  continue;
+}
 
   const patternAPositions =
               buildRepeatingTreePattern(
