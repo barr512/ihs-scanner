@@ -167,23 +167,53 @@ function getInputs() {
     they entered.
   */
   const usingCustomProductRate =
-    selectedProduct &&
-    Number.isFinite(enteredRate) &&
-    enteredRate !== selectedProduct.defaultRate;
+    Boolean(
+      selectedProduct &&
+      Number.isFinite(enteredRate) &&
+      enteredRate !== selectedProduct.defaultRate
+    );
 
   return {
-  acres: Number(document.getElementById("acres").value),
-  rows: Number(document.getElementById("rows").value),
-  rowSpacing: Number(document.getElementById("rowSpacing").value),
-  treeSpacing: Number(document.getElementById("treeSpacing").value),
-  targetRate: Number(document.getElementById("rate").value),
-  availableDispensers: Number(document.getElementById("availableDispensers").value) || null,
-  rowDirection: document.getElementById("rowDirection").value,
-  pressureEdge: document.getElementById("pressureEdge").value,
-  selectedProduct
-};
-}
+    acres: Number(
+      document.getElementById("acres").value
+    ),
 
+    rows: Number(
+      document.getElementById("rows").value
+    ),
+
+    rowSpacing: Number(
+      document.getElementById("rowSpacing").value
+    ),
+
+    treeSpacing: Number(
+      document.getElementById("treeSpacing").value
+    ),
+
+    targetRate: enteredRate,
+
+    usingCustomProductRate,
+
+    availableDispensers:
+      Number(
+        document.getElementById(
+          "availableDispensers"
+        ).value
+      ) || null,
+
+    rowDirection:
+      document.getElementById(
+        "rowDirection"
+      ).value,
+
+    pressureEdge:
+      document.getElementById(
+        "pressureEdge"
+      ).value,
+
+    selectedProduct
+  };
+}
 function showSetupScreen() {
   setupScreen.classList.remove("hidden");
   resultsScreen.classList.add("hidden");
@@ -1121,30 +1151,11 @@ if (
   );
 
 /*
-  Reject patterns that create unacceptable gaps anywhere
-  in the complete block.
-
-  Different A and B intervals are allowed, but only when
-  their combined placement maintains reasonable coverage
-  throughout the orchard.
+  Reject the completed layout before it can be ranked
+  or displayed when it fails the whole-block spacing audit.
 */
-const expectedSpacing =
-  Math.sqrt(
-    SQFT_PER_ACRE /
-    input.targetRate
-  );
-
-const maximumAllowed95thDistance =
-  expectedSpacing * 0.85;
-
-const maximumAllowedWorstDistance =
-  expectedSpacing * 1.10;
-
 if (
-  coverageQuality.percentile95 >
-    maximumAllowed95thDistance ||
-  coverageQuality.worstNearestDistance >
-    maximumAllowedWorstDistance
+  !coverageQuality.passesSpacingAudit
 ) {
   continue;
 }
