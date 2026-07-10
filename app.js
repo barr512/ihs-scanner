@@ -961,16 +961,44 @@ if (
               continue;
             }
 
-            const coverageQuality =
-              scoreCoverageQuality(
-                placements,
-                orchard,
-                input
-              );
+           const coverageQuality =
+  scoreCoverageQuality(
+    placements,
+    orchard,
+    input
+  );
 
-            const actualAreaPerDispenser =
-              blockArea / count;
+/*
+  Reject patterns that create unacceptable gaps anywhere
+  in the complete block.
 
+  Different A and B intervals are allowed, but only when
+  their combined placement maintains reasonable coverage
+  throughout the orchard.
+*/
+const expectedSpacing =
+  Math.sqrt(
+    SQFT_PER_ACRE /
+    input.targetRate
+  );
+
+const maximumAllowed95thDistance =
+  expectedSpacing * 0.85;
+
+const maximumAllowedWorstDistance =
+  expectedSpacing * 1.10;
+
+if (
+  coverageQuality.percentile95 >
+    maximumAllowed95thDistance ||
+  coverageQuality.worstNearestDistance >
+    maximumAllowedWorstDistance
+) {
+  continue;
+}
+
+const actualAreaPerDispenser =
+  blockArea / count;
             const coverageDifferencePercent =
               Math.abs(
                 actualAreaPerDispenser -
