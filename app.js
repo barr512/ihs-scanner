@@ -535,11 +535,19 @@ function getBestPatterns(input) {
           const patternAStart
           of patternAStartOptions
         ) {
-          for (
-            const patternBStart
-            of patternBStartOptions
-          ) {
-            const patternAPositions =
+         for (
+  const patternBStart
+  of patternBStartOptions
+) {
+  /*
+    Every displayed pattern must be staggered.
+    Pattern A and Pattern B cannot begin on the same tree.
+  */
+  if (patternAStart === patternBStart) {
+    continue;
+  }
+
+  const patternAPositions =
               buildRepeatingTreePattern(
                 treesPerRow,
                 patternAInterval,
