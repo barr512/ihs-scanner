@@ -616,7 +616,7 @@ function getSimpleStartOptions(interval) {
   );
 }
 
-function getBestPatterns(input) {
+function getBestPatterns(input, showClosest = false) {
   const SQFT_PER_ACRE = 43560;
 
   const blockArea =
@@ -939,13 +939,19 @@ if (!patternRemainsStaggered) {
               ) /
               input.targetRate;
 
-            // Normal planning mode stays within 3%.
-            if (
-              !inventoryIsLimited &&
-              percentOffTarget > 0.03
-            ) {
-              continue;
-            }
+           /*
+  Normal optimization stays within 3% of the requested rate.
+
+  The 3% limit is relaxed only after the user chooses
+  "View Closest Practical Patterns."
+*/
+if (
+  !inventoryIsLimited &&
+  !showClosest &&
+  percentOffTarget > 0.03
+) {
+  continue;
+}
 
             if (
               inventoryIsLimited &&
@@ -1068,6 +1074,53 @@ if (!patternRemainsStaggered) {
   }
 
   candidatePatterns.sort((a, b) => {
+     /*
+    When the user requests closest practical patterns:
+
+    1. Closest dispenser count/rate
+    2. Closest expected coverage area
+    3. Best whole-block coverage score
+    4. Simplest A/B pattern for workers
+  */
+  if (showClosest) {
+    const rateDifferenceA = Math.abs(
+      a.count - targetDispensers
+    );
+
+    const rateDifferenceB = Math.abs(
+      b.count - targetDispensers
+    );
+
+    if (rateDifferenceA !== rateDifferenceB) {
+      return rateDifferenceA - rateDifferenceB;
+    }
+
+    if (
+      a.coverageDifferencePercent !==
+      b.coverageDifferencePercent
+    ) {
+      return (
+        a.coverageDifferencePercent -
+        b.coverageDifferencePercent
+      );
+    }
+
+    if (a.coverageScore !== b.coverageScore) {
+      return a.coverageScore - b.coverageScore;
+    }
+
+    const simplicityA = Math.abs(
+      a.patternAInterval -
+      a.patternBInterval
+    );
+
+    const simplicityB = Math.abs(
+      b.patternAInterval -
+      b.patternBInterval
+    );
+
+    return simplicityA - simplicityB;
+  } 
   /*
     Combined optimization:
 
@@ -1223,7 +1276,7 @@ if (!patternRemainsStaggered) {
     patterns: selectedPatterns
   };
 }
-function generatePlans() {
+function generatePlans(showClosest = false) {
   const input = getInputs();
 
   if (
@@ -1251,7 +1304,12 @@ input.inventoryIsLimited =
   input.availableDispensers &&
   input.availableDispensers < input.labelTargetDispensers;
 
-const engineResults = getBestPatterns(input);
+const engineResults = getBestPatterns(
+  input,
+  showClosest
+);
+
+input.showingClosestPatterns = showClosest;
 
 input.targetDispensers =
   input.inventoryIsLimited
@@ -1398,18 +1456,71 @@ function renderOptions(plans) {
   optionsEl.innerHTML = "";
 
   if (!plans.length) {
+  /*
+    Normal search found no fully optimized pattern.
+    Give the grower the choice to view the closest options.
+  */
+  if (
+    !currentInput ||
+    !currentInput.showingClosestPatterns
+  ) {
     optionsEl.innerHTML = `
       <section class="option-card">
-        <strong>No qualifying patterns were generated.</strong>
+        <strong>
+          No fully optimized deployment pattern was found.
+        </strong>
+
         <p class="muted">
-          The entered block dimensions could not produce a pattern within
-          the current rate limits.
+          The closest practical alternatives are available
+          for review.
         </p>
+
+        <button
+          type="button"
+          class="secondary-button"
+          id="viewClosestPatternsBtn"
+        >
+          View Closest Practical Patterns
+        </button>
       </section>
     `;
 
+    const closestPatternsBtn =
+      document.getElementById(
+        "viewClosestPatternsBtn"
+      );
+
+    if (closestPatternsBtn) {
+      closestPatternsBtn.addEventListener(
+        "click",
+        () => {
+          generatePlans(true);
+        }
+      );
+    }
+
     return;
   }
+
+  /*
+    Even the relaxed rate search found no pattern that
+    passed the remaining deployment rules.
+  */
+  optionsEl.innerHTML = `
+    <section class="option-card">
+      <strong>
+        No practical deployment pattern was found.
+      </strong>
+
+      <p class="muted">
+        No pattern satisfied the current stagger, spacing,
+        coverage, and field-deployment requirements.
+      </p>
+    </section>
+  `;
+
+  return;
+}
 
   plans.forEach((plan, index) => {
   const repeatedMatch = plans.some((otherPlan, otherIndex) =>
