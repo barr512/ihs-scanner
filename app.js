@@ -154,9 +154,24 @@ if (topBackBtn) {
   topBackBtn.addEventListener("click", showSetupScreen);
 }
 function getInputs() {
- const selectedProduct = products[productSelect.value] || null;
+  const selectedProduct =
+    products[productSelect.value] || null;
 
-return {
+  const enteredRate = Number(
+    document.getElementById("rate").value
+  );
+
+  /*
+    When a grower changes the product's recommended
+    planning rate, optimize specifically for the rate
+    they entered.
+  */
+  const usingCustomProductRate =
+    selectedProduct &&
+    Number.isFinite(enteredRate) &&
+    enteredRate !== selectedProduct.defaultRate;
+
+  return {
   acres: Number(document.getElementById("acres").value),
   rows: Number(document.getElementById("rows").value),
   rowSpacing: Number(document.getElementById("rowSpacing").value),
