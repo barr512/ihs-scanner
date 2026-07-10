@@ -912,7 +912,6 @@ function renderOptions(plans) {
   });
 }
 
-edge.`;
 function describePattern(plan) {
   const rowText =
     plan.rowInterval === 1
