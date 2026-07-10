@@ -205,120 +205,375 @@ function scoreCoverageQuality(placements, orchard, input) {
       averageNearestDistance: Infinity,
       worstNearestDistance: Infinity,
       clusterPenalty: Infinity,
+      gapPenalty: Infinity,
       coverageScore: Infinity,
       coverageUniformity: 0
     };
   }
 
   /*
-    Scoring every tree against every dispenser is too slow on a phone.
+    Store dispenser tree positions by orchard row.
 
-    Instead, sample representative trees and representative dispenser
-    placements. This keeps comparisons consistent while allowing the
-    optimizer to finish.
+    This lets the app check every tree in the orchard
+    without comparing every tree to every dispenser.
   */
-
-  const maximumTreeSamples = 150;
-  const maximumPlacementSamples = 150;
-
-  const treeStep = Math.max(
-    1,
-    Math.ceil(orchard.trees.length / maximumTreeSamples)
-  );
-
-  const placementStep = Math.max(
-    1,
-    Math.ceil(placements.length / maximumPlacementSamples)
-  );
-
-  const sampledTrees = [];
-
-  for (
-    let index = 0;
-    index < orchard.trees.length;
-    index += treeStep
-  ) {
-    sampledTrees.push(orchard.trees[index]);
-  }
-
-  const sampledPlacements = [];
-
-  for (
-    let index = 0;
-    index < placements.length;
-    index += placementStep
-  ) {
-    sampledPlacements.push(placements[index]);
-  }
-
-  let totalNearestDistance = 0;
-  let worstNearestDistance = 0;
-
-  sampledTrees.forEach(tree => {
-    let nearestDistance = Infinity;
-
-    sampledPlacements.forEach(place => {
-      const rowDistance =
-        Math.abs(tree.row - place.row) *
-        input.rowSpacing;
-
-      const treeDistance =
-        Math.abs(tree.tree - place.tree) *
-        input.treeSpacing;
-
-      const distance = Math.sqrt(
-        rowDistance ** 2 +
-        treeDistance ** 2
-      );
-
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-      }
-    });
-
-    totalNearestDistance += nearestDistance;
-
-    if (nearestDistance > worstNearestDistance) {
-      worstNearestDistance = nearestDistance;
-    }
-  });
-
-  const averageNearestDistance =
-    totalNearestDistance / sampledTrees.length;
-
-  const rowCounts = new Map();
+  const placementsByRow = new Map();
 
   placements.forEach(place => {
-    rowCounts.set(
-      place.row,
-      (rowCounts.get(place.row) || 0) + 1
+    if (!placementsByRow.has(place.row)) {
+      placementsByRow.set(place.row, []);
+    }
+
+    placementsByRow.get(place.row).push(place.tree);
+  });
+
+  placementsByRow.forEach(treePositions => {
+    treePositions.sort((a, b) => a - b);
+  });
+
+  const treatedRowNumbers = [
+    ...placementsByRow.keys()
+  ].sort((a, b) => a - b);
+
+  /*
+    Find the nearest dispenser position in one row.
+  */
+  function nearestTreeDistance(
+    sortedTreePositions,
+    targetTree,
+    excludeExactMatch = false
+  ) {
+    let low = 0;
+    let high = sortedTreePositions.length;
+
+    while (low < high) {
+      const middle = Math.floor(
+        (low + high) / 2
+      );
+
+      if (
+        sortedTreePositions[middle] <
+        targetTree
+      ) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+
+    let nearestDifference = Infinity;
+
+    const indexesToCheck = [
+      low - 2,
+      low - 1,
+      low,
+      low + 1
+    ];
+
+    indexesToCheck.forEach(index => {
+      if (
+        index < 0 ||
+        index >= sortedTreePositions.length
+      ) {
+        return;
+      }
+
+      const candidateTree =
+        sortedTreePositions[index];
+
+      if (
+        excludeExactMatch &&
+        candidateTree === targetTree
+      ) {
+        return;
+      }
+
+      nearestDifference = Math.min(
+        nearestDifference,
+        Math.abs(
+          candidateTree -
+          targetTree
+        )
+      );
+    });
+
+    return nearestDifference;
+  }
+
+  /*
+    Check every orchard tree.
+
+    This catches gaps and uneven bands anywhere in
+    the complete block rather than sampling only part
+    of the orchard.
+  */
+  const nearestCoverageDistances = [];
+
+  orchard.trees.forEach(tree => {
+    let nearestDistance = Infinity;
+
+    treatedRowNumbers.forEach(
+      dispenserRow => {
+        const rowDistance =
+          Math.abs(
+            tree.row -
+            dispenserRow
+          ) *
+          input.rowSpacing;
+
+        /*
+          A farther row cannot improve the current
+          nearest distance.
+        */
+        if (rowDistance > nearestDistance) {
+          return;
+        }
+
+        const treeDifference =
+          nearestTreeDistance(
+            placementsByRow.get(
+              dispenserRow
+            ),
+            tree.tree
+          );
+
+        if (!Number.isFinite(treeDifference)) {
+          return;
+        }
+
+        const distanceAlongRow =
+          treeDifference *
+          input.treeSpacing;
+
+        const physicalDistance =
+          Math.sqrt(
+            rowDistance ** 2 +
+            distanceAlongRow ** 2
+          );
+
+        nearestDistance = Math.min(
+          nearestDistance,
+          physicalDistance
+        );
+      }
+    );
+
+    nearestCoverageDistances.push(
+      nearestDistance
     );
   });
 
-  const rowCountValues = [...rowCounts.values()];
+  nearestCoverageDistances.sort(
+    (a, b) => a - b
+  );
 
-  const rowUseSpread = rowCountValues.length
-    ? Math.max(...rowCountValues) -
-      Math.min(...rowCountValues)
-    : 0;
+  const averageNearestDistance =
+    nearestCoverageDistances.reduce(
+      (total, distance) =>
+        total + distance,
+      0
+    ) /
+    nearestCoverageDistances.length;
 
-  const clusterPenalty =
-    rowUseSpread * 20;
+  const worstNearestDistance =
+    nearestCoverageDistances[
+      nearestCoverageDistances.length - 1
+    ];
 
+  const percentile90 =
+    nearestCoverageDistances[
+      Math.min(
+        nearestCoverageDistances.length - 1,
+        Math.floor(
+          nearestCoverageDistances.length *
+          0.90
+        )
+      )
+    ];
+
+  const percentile95 =
+    nearestCoverageDistances[
+      Math.min(
+        nearestCoverageDistances.length - 1,
+        Math.floor(
+          nearestCoverageDistances.length *
+          0.95
+        )
+      )
+    ];
+
+  const distanceVariance =
+    nearestCoverageDistances.reduce(
+      (total, distance) =>
+        total +
+        (
+          distance -
+          averageNearestDistance
+        ) ** 2,
+      0
+    ) /
+    nearestCoverageDistances.length;
+
+  const distanceSpread =
+    Math.sqrt(distanceVariance);
+
+  /*
+    The square root of expected coverage area gives
+    a useful physical reference for expected spacing.
+  */
+  const expectedSpacing =
+    Math.sqrt(
+      43560 /
+      input.targetRate
+    );
+
+  /*
+    Penalize orchard trees that are much farther than
+    expected from a dispenser.
+  */
+  const preferredMaximumCoverageDistance =
+    expectedSpacing * 0.75;
+
+  let gapPenalty = 0;
+
+  nearestCoverageDistances.forEach(
+    distance => {
+      if (
+        distance >
+        preferredMaximumCoverageDistance
+      ) {
+        gapPenalty +=
+          (
+            distance -
+            preferredMaximumCoverageDistance
+          ) /
+          expectedSpacing;
+      }
+    }
+  );
+
+  gapPenalty =
+    gapPenalty /
+    nearestCoverageDistances.length;
+
+  /*
+    Check every dispenser's nearest neighboring
+    dispenser. This detects clusters and rows that
+    periodically line up too closely.
+  */
+  const minimumPreferredDispenserDistance =
+    expectedSpacing * 0.55;
+
+  let clusterPenalty = 0;
+  let closestDispenserDistance = Infinity;
+
+  placements.forEach(place => {
+    let nearestOtherDispenser = Infinity;
+
+    treatedRowNumbers.forEach(
+      dispenserRow => {
+        const rowDistance =
+          Math.abs(
+            place.row -
+            dispenserRow
+          ) *
+          input.rowSpacing;
+
+        if (
+          rowDistance >
+          nearestOtherDispenser
+        ) {
+          return;
+        }
+
+        const treeDifference =
+          nearestTreeDistance(
+            placementsByRow.get(
+              dispenserRow
+            ),
+            place.tree,
+            dispenserRow === place.row
+          );
+
+        if (!Number.isFinite(treeDifference)) {
+          return;
+        }
+
+        const distanceAlongRow =
+          treeDifference *
+          input.treeSpacing;
+
+        const physicalDistance =
+          Math.sqrt(
+            rowDistance ** 2 +
+            distanceAlongRow ** 2
+          );
+
+        nearestOtherDispenser = Math.min(
+          nearestOtherDispenser,
+          physicalDistance
+        );
+      }
+    );
+
+    closestDispenserDistance = Math.min(
+      closestDispenserDistance,
+      nearestOtherDispenser
+    );
+
+    if (
+      nearestOtherDispenser <
+      minimumPreferredDispenserDistance
+    ) {
+      clusterPenalty +=
+        (
+          minimumPreferredDispenserDistance -
+          nearestOtherDispenser
+        ) /
+        expectedSpacing;
+    }
+  });
+
+  clusterPenalty =
+    clusterPenalty /
+    placements.length;
+
+  /*
+    Lower is better.
+
+    Average distance measures general coverage.
+    The 90th, 95th and worst distances expose gaps.
+    Distance spread exposes uneven distribution.
+    Cluster penalty catches dispensers placed too close.
+  */
   const coverageScore =
     averageNearestDistance +
-    worstNearestDistance * 2 +
-    clusterPenalty;
+    percentile90 * 1.5 +
+    percentile95 * 2 +
+    worstNearestDistance * 2.5 +
+    distanceSpread * 2 +
+    gapPenalty * 300 +
+    clusterPenalty * 400;
 
   const coverageUniformity = Math.max(
     0,
-    100 - coverageScore / 10
+    100 -
+    (
+      coverageScore /
+      expectedSpacing
+    ) *
+    8
   );
 
   return {
     averageNearestDistance,
     worstNearestDistance,
+    percentile90,
+    percentile95,
+    distanceSpread,
+    closestDispenserDistance,
     clusterPenalty,
+    gapPenalty,
     coverageScore,
     coverageUniformity
   };
@@ -675,11 +930,11 @@ function getBestPatterns(input) {
               countDifference * 25 +
               rowInterval * 5;
 
-            const score =
-              coverageQuality.coverageScore +
-              rateDifference * 100 +
-              coverageDifferencePercent * 500 +
-              crewEaseScore;
+          const score =
+  rateDifference * 300 +
+  coverageQuality.coverageScore +
+  coverageDifferencePercent * 500 +
+  crewEaseScore;
 
             candidatePatterns.push({
               patternType:
@@ -748,84 +1003,63 @@ function getBestPatterns(input) {
   }
 
   candidatePatterns.sort((a, b) => {
-    /*
-      1. Coverage uniformity
-    */
+  /*
+    Combined optimization:
 
-    if (
-      a.coverageScore !==
-      b.coverageScore
-    ) {
-      return (
-        a.coverageScore -
-        b.coverageScore
-      );
-    }
+    - Stay close to requested dispenser quantity.
+    - Avoid whole-block gaps and clusters.
+    - Preserve expected coverage area.
+    - Prefer simpler worker patterns when the
+      important measurements are close.
+  */
 
-    /*
-      2. Closest to the target dispenser count
-    */
-
-    const rateDifferenceA =
-      Math.abs(
-        a.count -
-          targetDispensers
-      );
-
-    const rateDifferenceB =
-      Math.abs(
-        b.count -
-          targetDispensers
-      );
-
-    if (
-      rateDifferenceA !==
-      rateDifferenceB
-    ) {
-      return (
-        rateDifferenceA -
-        rateDifferenceB
-      );
-    }
-
-    /*
-      3. Simpler A/B instructions
-    */
-
-    const simplicityA =
-      Math.abs(
-        a.patternAInterval -
-          a.patternBInterval
-      );
-
-    const simplicityB =
-      Math.abs(
-        b.patternAInterval -
-          b.patternBInterval
-      );
-
-    if (
-      simplicityA !== simplicityB
-    ) {
-      return simplicityA - simplicityB;
-    }
-
-    /*
-      4. Coverage area match
-    */
-
-    if (
-      a.coverageDifferencePercent !==
-      b.coverageDifferencePercent
-    ) {
-      return (
-        a.coverageDifferencePercent -
-        b.coverageDifferencePercent
-      );
-    }
-
+  if (a.score !== b.score) {
     return a.score - b.score;
-  });
+  }
+
+  const rateDifferenceA =
+    Math.abs(
+      a.count -
+      targetDispensers
+    );
+
+  const rateDifferenceB =
+    Math.abs(
+      b.count -
+      targetDispensers
+    );
+
+  if (
+    rateDifferenceA !==
+    rateDifferenceB
+  ) {
+    return (
+      rateDifferenceA -
+      rateDifferenceB
+    );
+  }
+
+  if (
+    a.coverageScore !==
+    b.coverageScore
+  ) {
+    return (
+      a.coverageScore -
+      b.coverageScore
+    );
+  }
+
+  return (
+    Math.abs(
+      a.patternAInterval -
+      a.patternBInterval
+    ) -
+    Math.abs(
+      b.patternAInterval -
+      b.patternBInterval
+    )
+  );
+});
 
   const uniquePatterns = [];
   const seen = new Set();
