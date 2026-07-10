@@ -1122,61 +1122,83 @@ if (
     return simplicityA - simplicityB;
   } 
   /*
-    Combined optimization:
+  Normal pattern ranking:
 
-    - Stay close to requested dispenser quantity.
-    - Avoid whole-block gaps and clusters.
-    - Preserve expected coverage area.
-    - Prefer simpler worker patterns when the
-      important measurements are close.
-  */
+  If coverage is similar, prefer the rate closest
+  to the selected rate.
 
-  if (a.score !== b.score) {
-    return a.score - b.score;
-  }
+  If coverage is meaningfully different, prefer
+  the better coverage match.
+*/
 
-  const rateDifferenceA =
-    Math.abs(
-      a.count -
-      targetDispensers
-    );
+const coverageDifferenceA =
+  a.coverageDifferencePercent;
 
-  const rateDifferenceB =
-    Math.abs(
-      b.count -
-      targetDispensers
-    );
+const coverageDifferenceB =
+  b.coverageDifferencePercent;
 
-  if (
-    rateDifferenceA !==
-    rateDifferenceB
-  ) {
-    return (
-      rateDifferenceA -
-      rateDifferenceB
-    );
-  }
+const coverageSimilarityTolerance = 0.01;
 
-  if (
-    a.coverageScore !==
-    b.coverageScore
-  ) {
-    return (
-      a.coverageScore -
-      b.coverageScore
-    );
-  }
+const coverageIsSimilar =
+  Math.abs(
+    coverageDifferenceA -
+    coverageDifferenceB
+  ) <= coverageSimilarityTolerance;
 
-  return (
-    Math.abs(
-      a.patternAInterval -
-      a.patternBInterval
-    ) -
-    Math.abs(
-      b.patternAInterval -
-      b.patternBInterval
-    )
+const rateDifferenceA =
+  Math.abs(
+    a.resultingRate -
+    input.targetRate
   );
+
+const rateDifferenceB =
+  Math.abs(
+    b.resultingRate -
+    input.targetRate
+  );
+
+if (coverageIsSimilar) {
+  if (rateDifferenceA !== rateDifferenceB) {
+    return rateDifferenceA - rateDifferenceB;
+  }
+
+  if (
+    coverageDifferenceA !==
+    coverageDifferenceB
+  ) {
+    return (
+      coverageDifferenceA -
+      coverageDifferenceB
+    );
+  }
+} else {
+  return (
+    coverageDifferenceA -
+    coverageDifferenceB
+  );
+}
+
+if (a.coverageScore !== b.coverageScore) {
+  return a.coverageScore - b.coverageScore;
+}
+
+const simplicityA =
+  Math.abs(
+    a.patternAInterval -
+    a.patternBInterval
+  ) +
+  a.rowInterval;
+
+const simplicityB =
+  Math.abs(
+    b.patternAInterval -
+    b.patternBInterval
+  ) +
+  b.rowInterval;
+
+return simplicityA - simplicityB;
+
+  
 });
 
   const uniquePatterns = [];
