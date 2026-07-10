@@ -1017,13 +1017,54 @@ function describePattern(plan) {
       : `every ${ordinal(plan.rowInterval)} row`;
 
   if (plan.patternType === "alternating-ab") {
-    const patternATrees =
-      plan.patternAPositions.join(", ");
+    const describeRowPattern = positions => {
+      if (!positions || positions.length < 2) {
+        return positions && positions.length
+          ? `place one dispenser at Tree ${positions[0]}`
+          : "place dispensers evenly across the row";
+      }
 
-    const patternBTrees =
-      plan.patternBPositions.join(", ");
+      const gaps = [];
 
-    return `Treat ${rowText}. Use Pattern A on the first treated row and Pattern B on the second treated row. Continue alternating A, B, A, B through the block. Pattern A trees: ${patternATrees}. Pattern B trees: ${patternBTrees}. Count trees from the selected highest-pressure edge.`;
+      for (let index = 1; index < positions.length; index++) {
+        gaps.push(positions[index] - positions[index - 1]);
+      }
+
+      const gapCounts = new Map();
+
+      gaps.forEach(gap => {
+        gapCounts.set(gap, (gapCounts.get(gap) || 0) + 1);
+      });
+
+      const sortedGaps = [...gapCounts.entries()]
+        .sort((a, b) => b[1] - a[1]);
+
+      const mainGap = sortedGaps[0][0];
+      const secondGap =
+        sortedGaps.length > 1
+          ? sortedGaps[1][0]
+          : null;
+
+      const startTree = positions[0];
+
+      if (secondGap === null) {
+        return `start at Tree ${startTree} and place a dispenser every ${mainGap} trees`;
+      }
+
+      if (Math.abs(mainGap - secondGap) === 1) {
+        return `start at Tree ${startTree} and alternate approximately every ${mainGap} to ${secondGap} trees`;
+      }
+
+      return `start at Tree ${startTree} and space dispensers as evenly as possible, averaging about every ${mainGap} trees`;
+    };
+
+    const patternADescription =
+      describeRowPattern(plan.patternAPositions);
+
+    const patternBDescription =
+      describeRowPattern(plan.patternBPositions);
+
+    return `Treat ${rowText}. On the first treated row, ${patternADescription}. On the next treated row, ${patternBDescription}. Continue alternating these two row patterns through the block. Count trees from the selected highest-pressure edge.`;
   }
 
   const treeText =
@@ -1034,10 +1075,10 @@ function describePattern(plan) {
   if (plan.offset > 0) {
     const startTree = 1 + plan.offset;
 
-    return `Place on ${treeText} in ${rowText}. Start the first treated row on Tree 1 from the selected highest-pressure edge. Start the next treated row on Tree ${startTree} from that same edge, then continue alternating those starting positions through the block.`;
+    return `Treat ${rowText}. On the first treated row, place a dispenser on ${treeText}, starting at Tree 1. On the next treated row, use the same spacing starting at Tree ${startTree}. Continue alternating through the block.`;
   }
 
-  return `Place on ${treeText} in ${rowText}, starting on Tree 1 from the selected highest-pressure edge.`;
+  return `Treat ${rowText}. Place a dispenser on ${treeText}, starting at Tree 1 from the selected highest-pressure edge.`;
 }
 function selectPlan(plan, input) {
   mapSection.classList.remove("hidden");
