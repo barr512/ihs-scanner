@@ -14,6 +14,10 @@ const targetPests = document.getElementById("targetPests");
 const productSelect = document.getElementById("productSelect");
 const rateInput = document.getElementById("rate");
 const productRateNote = document.getElementById("productRateNote");
+const idealDemoBtn =
+  document.getElementById(
+    "idealDemoBtn"
+  );
 const products = {
   "cmda-combo-meso-a": {
     name: "CIDETRAK CMDA COMBO MESO-A",
@@ -141,10 +145,23 @@ let currentInput = null;
 let currentPlans = [];
 
 if (generateBtn) {
-  generateBtn.addEventListener("click", event => {
-    event.preventDefault();
-    generatePlans();
-  });
+  generateBtn.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+      generatePlans();
+    }
+  );
+}
+
+if (idealDemoBtn) {
+  idealDemoBtn.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+      showIdealLayoutDemo();
+    }
+  );
 }
 
 if (backBtn) {
@@ -1501,7 +1518,1077 @@ function getSimpleStartOptions(interval) {
 
   return options;
 }
+function clampNumber(
+  value,
+  minimum,
+  maximum
+) {
+  return Math.max(
+    minimum,
+    Math.min(maximum, value)
+  );
+}
 
+/*
+  Distribute the exact target dispenser count
+  across the selected deployment lines.
+
+  Extra dispensers are spread across the block
+  rather than placed only on the first lines.
+*/
+function distributeCountAcrossLines(
+  totalCount,
+  lineCount
+) {
+  const baseCount =
+    Math.floor(
+      totalCount / lineCount
+    );
+
+  const remainder =
+    totalCount % lineCount;
+
+  const counts =
+    Array(lineCount).fill(
+      baseCount
+    );
+
+  if (remainder === 0) {
+    return counts;
+  }
+
+  for (
+    let extraIndex = 0;
+    extraIndex < remainder;
+    extraIndex++
+  ) {
+    const lineIndex =
+      Math.min(
+        lineCount - 1,
+        Math.floor(
+          (
+            extraIndex +
+            0.5
+          ) *
+          lineCount /
+          remainder
+        )
+      );
+
+    counts[lineIndex]++;
+  }
+
+  return counts;
+}
+
+/*
+  Find the nearest unused tree on one selected row.
+
+  The ideal coordinate remains stored separately,
+  so the engine always knows where the dispenser
+  was mathematically intended to be.
+*/
+function findNearestUnusedTree(
+  idealYFeet,
+  orchardRow,
+  treesPerRow,
+  treeSpacing,
+  usedLocations
+) {
+  const nearestTree =
+    clampNumber(
+      Math.round(
+        idealYFeet /
+        treeSpacing +
+        0.5
+      ),
+      1,
+      treesPerRow
+    );
+
+  let bestTree = null;
+  let bestDistance =
+    Infinity;
+
+  /*
+    Search outward from the nearest tree.
+
+    Usually the first tree checked will be available,
+    but this also resolves duplicate snapping.
+  */
+  for (
+    let offset = 0;
+    offset < treesPerRow;
+    offset++
+  ) {
+    const treeOptions =
+      offset === 0
+        ? [nearestTree]
+        : [
+            nearestTree - offset,
+            nearestTree + offset
+          ];
+
+    treeOptions.forEach(
+      treeNumber => {
+        if (
+          treeNumber < 1 ||
+          treeNumber >
+            treesPerRow
+        ) {
+          return;
+        }
+
+        const locationKey =
+          `${orchardRow}|${treeNumber}`;
+
+        if (
+          usedLocations.has(
+            locationKey
+          )
+        ) {
+          return;
+        }
+
+        const actualYFeet =
+          (
+            treeNumber -
+            0.5
+          ) *
+          treeSpacing;
+
+        const snapDistance =
+          Math.abs(
+            actualYFeet -
+            idealYFeet
+          );
+
+        if (
+          snapDistance <
+          bestDistance
+        ) {
+          bestDistance =
+            snapDistance;
+
+          bestTree =
+            treeNumber;
+        }
+      }
+    );
+
+    /*
+      Once a nearby unused tree has been found,
+      no much farther tree can improve the result.
+    */
+    if (
+      bestTree !== null &&
+      offset >
+        Math.ceil(
+          bestDistance /
+          treeSpacing
+        ) +
+        1
+    ) {
+      break;
+    }
+  }
+
+  return {
+    tree:
+      bestTree,
+
+    snapDistance:
+      bestDistance
+  };
+}
+
+/*
+  Measure physical distance between two snapped
+  orchard placements.
+*/
+function physicalPlacementDistance(
+  first,
+  second,
+  input
+) {
+  const acrossRowsFeet =
+    (
+      first.row -
+      second.row
+    ) *
+    input.rowSpacing;
+
+  const alongRowsFeet =
+    (
+      first.tree -
+      second.tree
+    ) *
+    input.treeSpacing;
+
+  return Math.sqrt(
+    acrossRowsFeet ** 2 +
+    alongRowsFeet ** 2
+  );
+}
+
+/*
+  Build the ideal whole-block deployment.
+
+  This function starts with the entered rate and exact
+  target dispenser count. It does not begin with an
+  A/B crew recipe.
+*/
+function buildIdealLayout(
+  input
+) {
+  const SQFT_PER_ACRE =
+    43560;
+
+  const blockArea =
+    input.acres *
+    SQFT_PER_ACRE;
+
+  /*
+    Treat each orchard row as the center of one
+    row-spacing-wide strip.
+  */
+  const blockWidth =
+    input.rows *
+    input.rowSpacing;
+
+  const rowLength =
+    blockArea /
+    blockWidth;
+
+  const treesPerRow =
+    Math.max(
+      1,
+      Math.round(
+        rowLength /
+        input.treeSpacing
+      )
+    );
+
+  const targetDispensers =
+    input.availableDispensers &&
+    input.availableDispensers <
+      Math.round(
+        input.acres *
+        input.targetRate
+      )
+      ? input.availableDispensers
+      : Math.round(
+          input.acres *
+          input.targetRate
+        );
+
+  const targetAreaPerDispenser =
+    blockArea /
+    targetDispensers;
+
+  const expectedSpacing =
+    Math.sqrt(
+      targetAreaPerDispenser
+    );
+
+  /*
+    Test every practical number of deployment lines.
+
+    The best line count balances:
+    - spacing across the block;
+    - spacing down the rows;
+    - snapping those ideal lines to actual orchard rows.
+  */
+  const lineCountCandidates =
+    [];
+
+  const maximumLineCount =
+    Math.min(
+      input.rows,
+      targetDispensers
+    );
+
+  for (
+    let lineCount = 1;
+    lineCount <=
+      maximumLineCount;
+    lineCount++
+  ) {
+    const averageCountPerLine =
+      targetDispensers /
+      lineCount;
+
+    const spacingAcrossBlock =
+      blockWidth /
+      lineCount;
+
+    const spacingDownRows =
+      rowLength /
+      averageCountPerLine;
+
+    /*
+      A value near zero means that the physical
+      spacing is balanced in both directions.
+    */
+    const spacingBalanceError =
+      Math.abs(
+        Math.log(
+          spacingAcrossBlock /
+          spacingDownRows
+        )
+      );
+
+    let totalRowSnapError = 0;
+
+    const snappedRows =
+      [];
+
+    for (
+      let lineIndex = 0;
+      lineIndex < lineCount;
+      lineIndex++
+    ) {
+      const idealXFeet =
+        (
+          lineIndex +
+          0.5
+        ) *
+        spacingAcrossBlock;
+
+      const nearestRow =
+        clampNumber(
+          Math.round(
+            idealXFeet /
+            input.rowSpacing +
+            0.5
+          ),
+          1,
+          input.rows
+        );
+
+      const actualRowXFeet =
+        (
+          nearestRow -
+          0.5
+        ) *
+        input.rowSpacing;
+
+      totalRowSnapError +=
+        Math.abs(
+          actualRowXFeet -
+          idealXFeet
+        );
+
+      snappedRows.push(
+        nearestRow
+      );
+    }
+
+    const uniqueRowCount =
+      new Set(
+        snappedRows
+      ).size;
+
+    /*
+      A candidate cannot use the same orchard row for
+      two separate ideal deployment lines.
+    */
+    if (
+      uniqueRowCount !==
+      lineCount
+    ) {
+      continue;
+    }
+
+    const averageRowSnapError =
+      totalRowSnapError /
+      lineCount;
+
+    const normalizedRowSnapError =
+      averageRowSnapError /
+      input.rowSpacing;
+
+    /*
+      Physical spacing balance is primary.
+
+      Row snapping is secondary because dispensers
+      ultimately must be assigned to real orchard rows.
+    */
+    const lineCountScore =
+      spacingBalanceError +
+      normalizedRowSnapError *
+        0.35;
+
+    lineCountCandidates.push({
+      lineCount,
+      spacingAcrossBlock,
+      spacingDownRows,
+      spacingBalanceError,
+      averageRowSnapError,
+      snappedRows,
+      lineCountScore
+    });
+  }
+
+  lineCountCandidates.sort(
+    (a, b) =>
+      a.lineCountScore -
+      b.lineCountScore
+  );
+
+  const selectedLineDesign =
+    lineCountCandidates[0];
+
+  if (!selectedLineDesign) {
+    return null;
+  }
+
+  const lineCounts =
+    distributeCountAcrossLines(
+      targetDispensers,
+      selectedLineDesign
+        .lineCount
+    );
+
+  const idealPoints = [];
+  const snappedPlacements =
+    [];
+  const deploymentLines =
+    [];
+
+  const usedLocations =
+    new Set();
+
+  for (
+    let lineIndex = 0;
+    lineIndex <
+      selectedLineDesign
+        .lineCount;
+    lineIndex++
+  ) {
+    const dispenserCount =
+      lineCounts[lineIndex];
+
+    const spacingDownLine =
+      rowLength /
+      dispenserCount;
+
+    const idealXFeet =
+      (
+        lineIndex +
+        0.5
+      ) *
+      selectedLineDesign
+        .spacingAcrossBlock;
+
+    const orchardRow =
+      selectedLineDesign
+        .snappedRows[
+          lineIndex
+        ];
+
+    const actualRowXFeet =
+      (
+        orchardRow -
+        0.5
+      ) *
+      input.rowSpacing;
+
+    const lineIdealPoints =
+      [];
+
+    /*
+      Alternate deployment lines are shifted by
+      one-half of their down-row spacing.
+
+      Positions that pass the far boundary wrap to
+      the beginning of the block. This preserves the
+      exact point count and creates a stagger.
+    */
+    const staggerFraction =
+      lineIndex % 2 === 0
+        ? 0
+        : 0.5;
+
+    for (
+      let pointIndex = 0;
+      pointIndex <
+        dispenserCount;
+      pointIndex++
+    ) {
+      let idealYFeet =
+        (
+          pointIndex +
+          0.5 +
+          staggerFraction
+        ) *
+        spacingDownLine;
+
+      while (
+        idealYFeet >=
+        rowLength
+      ) {
+        idealYFeet -=
+          rowLength;
+      }
+
+      const idealPoint = {
+        lineIndex,
+        pointIndex,
+        idealXFeet,
+        idealYFeet,
+        intendedOrchardRow:
+          orchardRow
+      };
+
+      idealPoints.push(
+        idealPoint
+      );
+
+      lineIdealPoints.push(
+        idealPoint
+      );
+    }
+
+    /*
+      Sort wrapped points back into physical order
+      down the row.
+    */
+    lineIdealPoints.sort(
+      (a, b) =>
+        a.idealYFeet -
+        b.idealYFeet
+    );
+
+    const linePlacements =
+      [];
+
+    lineIdealPoints.forEach(
+      idealPoint => {
+        const nearestTreeResult =
+          findNearestUnusedTree(
+            idealPoint.idealYFeet,
+            orchardRow,
+            treesPerRow,
+            input.treeSpacing,
+            usedLocations
+          );
+
+        if (
+          nearestTreeResult.tree ===
+          null
+        ) {
+          return;
+        }
+
+        const locationKey =
+          `${orchardRow}|${nearestTreeResult.tree}`;
+
+        usedLocations.add(
+          locationKey
+        );
+
+        const actualYFeet =
+          (
+            nearestTreeResult.tree -
+            0.5
+          ) *
+          input.treeSpacing;
+
+        const acrossRowSnap =
+          actualRowXFeet -
+          idealPoint.idealXFeet;
+
+        const alongRowSnap =
+          actualYFeet -
+          idealPoint.idealYFeet;
+
+        const totalSnapDistance =
+          Math.sqrt(
+            acrossRowSnap ** 2 +
+            alongRowSnap ** 2
+          );
+
+        const placement = {
+          row:
+            orchardRow,
+
+          tree:
+            nearestTreeResult.tree,
+
+          lineIndex,
+
+          idealXFeet:
+            idealPoint.idealXFeet,
+
+          idealYFeet:
+            idealPoint.idealYFeet,
+
+          actualXFeet:
+            actualRowXFeet,
+
+          actualYFeet,
+
+          snapDistance:
+            totalSnapDistance
+        };
+
+        snappedPlacements.push(
+          placement
+        );
+
+        linePlacements.push(
+          placement
+        );
+      }
+    );
+
+    linePlacements.sort(
+      (a, b) =>
+        a.tree -
+        b.tree
+    );
+
+    deploymentLines.push({
+      lineNumber:
+        lineIndex + 1,
+
+      orchardRow,
+
+      dispenserCount,
+
+      spacingDownLine,
+
+      staggered:
+        lineIndex % 2 === 1,
+
+      placements:
+        linePlacements
+    });
+  }
+
+  /*
+    Survey the final snapped placement.
+
+    This does not reject anything yet. It provides
+    measurements so we can verify that the mathematical
+    layout is behaving correctly before replacing the
+    recommendation engine.
+  */
+  const nearestNeighborDistances =
+    [];
+
+  snappedPlacements.forEach(
+    (placement, placementIndex) => {
+      let nearestDistance =
+        Infinity;
+
+      snappedPlacements.forEach(
+        (
+          otherPlacement,
+          otherIndex
+        ) => {
+          if (
+            placementIndex ===
+            otherIndex
+          ) {
+            return;
+          }
+
+          const distance =
+            physicalPlacementDistance(
+              placement,
+              otherPlacement,
+              input
+            );
+
+          nearestDistance =
+            Math.min(
+              nearestDistance,
+              distance
+            );
+        }
+      );
+
+      nearestNeighborDistances.push(
+        nearestDistance
+      );
+    }
+  );
+
+  nearestNeighborDistances.sort(
+    (a, b) => a - b
+  );
+
+  const averageNearestNeighborDistance =
+    nearestNeighborDistances.reduce(
+      (total, distance) =>
+        total + distance,
+      0
+    ) /
+    nearestNeighborDistances.length;
+
+  const minimumNearestNeighborDistance =
+    nearestNeighborDistances[0];
+
+  const maximumNearestNeighborDistance =
+    nearestNeighborDistances[
+      nearestNeighborDistances.length -
+      1
+    ];
+
+  const averageSnapDistance =
+    snappedPlacements.reduce(
+      (total, placement) =>
+        total +
+        placement.snapDistance,
+      0
+    ) /
+    snappedPlacements.length;
+
+  const worstSnapDistance =
+    Math.max(
+      ...snappedPlacements.map(
+        placement =>
+          placement.snapDistance
+      )
+    );
+
+  return {
+    blockArea,
+    blockWidth,
+    rowLength,
+    treesPerRow,
+    targetDispensers,
+    targetAreaPerDispenser,
+    expectedSpacing,
+
+    lineCount:
+      selectedLineDesign
+        .lineCount,
+
+    spacingAcrossBlock:
+      selectedLineDesign
+        .spacingAcrossBlock,
+
+    averageSpacingDownRows:
+      selectedLineDesign
+        .spacingDownRows,
+
+    idealPoints,
+    placements:
+      snappedPlacements,
+
+    deploymentLines,
+
+    averageSnapDistance,
+    worstSnapDistance,
+
+    averageNearestNeighborDistance,
+    minimumNearestNeighborDistance,
+    maximumNearestNeighborDistance
+  };
+}
+
+/*
+  Display the mathematical layout using the app's
+  existing results screen and orchard map.
+*/
+function showIdealLayoutDemo() {
+  const input =
+    getInputs();
+
+  if (
+    !Number.isFinite(
+      input.acres
+    ) ||
+    input.acres <= 0 ||
+
+    !Number.isFinite(
+      input.rows
+    ) ||
+    input.rows <= 0 ||
+
+    !Number.isFinite(
+      input.rowSpacing
+    ) ||
+    input.rowSpacing <= 0 ||
+
+    !Number.isFinite(
+      input.treeSpacing
+    ) ||
+    input.treeSpacing <= 0 ||
+
+    !Number.isFinite(
+      input.targetRate
+    ) ||
+    input.targetRate <= 0
+  ) {
+    alert(
+      "Please enter acreage, number of rows, row spacing, tree spacing, and dispenser rate before previewing the ideal layout."
+    );
+
+    return;
+  }
+
+  const idealLayout =
+    buildIdealLayout(input);
+
+  if (!idealLayout) {
+    alert(
+      "The mathematical layout could not be created for the entered block."
+    );
+
+    return;
+  }
+
+  const layout = [];
+
+  for (
+    let rowIndex = 0;
+    rowIndex < input.rows;
+    rowIndex++
+  ) {
+    layout.push(
+      Array(
+        idealLayout.treesPerRow
+      ).fill(false)
+    );
+  }
+
+  idealLayout.placements.forEach(
+    placement => {
+      layout[
+        placement.row - 1
+      ][
+        placement.tree - 1
+      ] = true;
+    }
+  );
+
+  currentInput = {
+    ...input,
+
+    targetDispensers:
+      idealLayout.targetDispensers,
+
+    targetAreaPerDispenser:
+      idealLayout
+        .targetAreaPerDispenser,
+
+    estimatedRowLength:
+      idealLayout.rowLength,
+
+    treesPerRow:
+      idealLayout.treesPerRow
+  };
+
+  setupScreen.classList.add(
+    "hidden"
+  );
+
+  resultsScreen.classList.remove(
+    "hidden"
+  );
+
+  summaryEl.classList.add(
+    "hidden"
+  );
+
+  optionsEl.classList.add(
+    "hidden"
+  );
+
+  mapSection.classList.remove(
+    "hidden"
+  );
+
+  instructionsEl.classList.remove(
+    "hidden"
+  );
+
+  const lineDescription =
+    idealLayout.deploymentLines
+      .map(line => {
+        return (
+          `Line ${line.lineNumber}: ` +
+          `Orchard Row ${line.orchardRow}, ` +
+          `${line.dispenserCount} dispensers` +
+          (
+            line.staggered
+              ? ", half-spacing stagger"
+              : ""
+          )
+        );
+      })
+      .join("<br>");
+
+  selectedPlanText.innerHTML = `
+    <button
+      class="secondary-button"
+      onclick="showSetupScreen()"
+    >
+      Back to Block Details
+    </button>
+
+    <br><br>
+
+    <strong>
+      Ideal Mathematical Layout Demo
+    </strong>
+
+    <p class="muted">
+      This is the mathematically spaced layout
+      snapped to actual orchard trees. It is not
+      yet a final crew pattern.
+    </p>
+  `;
+
+  renderMap(
+    layout,
+    currentInput
+  );
+
+  instructionsEl.innerHTML = `
+    <h2>
+      Mathematical Layout Details
+    </h2>
+
+    <div class="stats">
+      <div class="stat">
+        <span class="muted">
+          Target
+        </span>
+
+        <strong>
+          ${idealLayout.targetDispensers}
+        </strong>
+
+        <span class="muted">
+          dispensers
+        </span>
+      </div>
+
+      <div class="stat">
+        <span class="muted">
+          Deployment Lines
+        </span>
+
+        <strong>
+          ${idealLayout.lineCount}
+        </strong>
+
+        <span class="muted">
+          across block
+        </span>
+      </div>
+
+      <div class="stat">
+        <span class="muted">
+          Across-Line Spacing
+        </span>
+
+        <strong>
+          ${idealLayout.spacingAcrossBlock.toFixed(1)}
+        </strong>
+
+        <span class="muted">
+          feet
+        </span>
+      </div>
+
+      <div class="stat">
+        <span class="muted">
+          Average Down-Row Spacing
+        </span>
+
+        <strong>
+          ${idealLayout.averageSpacingDownRows.toFixed(1)}
+        </strong>
+
+        <span class="muted">
+          feet
+        </span>
+      </div>
+    </div>
+
+    <p>
+      <strong>
+        Selected orchard rows
+      </strong>
+      <br>
+      ${lineDescription}
+    </p>
+
+    <ul class="instructions-list">
+      <li>
+        Entered rate:
+        ${input.targetRate}
+        per acre
+      </li>
+
+      <li>
+        Ideal area per dispenser:
+        ${idealLayout.targetAreaPerDispenser.toFixed(0)}
+        sq ft
+      </li>
+
+      <li>
+        Expected equal-spacing distance:
+        ${idealLayout.expectedSpacing.toFixed(1)}
+        ft
+      </li>
+
+      <li>
+        Average snap to an actual tree:
+        ${idealLayout.averageSnapDistance.toFixed(1)}
+        ft
+      </li>
+
+      <li>
+        Worst snap to an actual tree:
+        ${idealLayout.worstSnapDistance.toFixed(1)}
+        ft
+      </li>
+
+      <li>
+        Average nearest-dispenser distance:
+        ${idealLayout.averageNearestNeighborDistance.toFixed(1)}
+        ft
+      </li>
+
+      <li>
+        Closest dispenser pair:
+        ${idealLayout.minimumNearestNeighborDistance.toFixed(1)}
+        ft
+      </li>
+
+      <li>
+        Most isolated dispenser:
+        ${idealLayout.maximumNearestNeighborDistance.toFixed(1)}
+        ft
+      </li>
+    </ul>
+
+    <p class="muted">
+      The next development stage will compare
+      repeatable crew patterns directly against
+      these stored ideal coordinates.
+    </p>
+
+    <button
+      class="secondary-button"
+      onclick="showSetupScreen()"
+    >
+      Back to Block Details
+    </button>
+  `;
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+}
 function getBestPatterns(input, showClosest = false) {
   const SQFT_PER_ACRE = 43560;
 
