@@ -873,34 +873,15 @@ function buildRepeatingTreePattern(
     .sort((a, b) => a - b);
 }
 
-function getSimpleStartOptions(
-  interval,
-  searchAllStarts = false
-) {
+function getSimpleStartOptions(interval) {
   /*
-    At the recommended rate, keep the search limited
-    to the simplest crew-friendly starting positions.
-  */
-  if (!searchAllStarts) {
-    const options = [
-      1,
-      1 + Math.floor(interval / 2)
-    ];
+    Test every possible starting tree within the
+    repeating interval.
 
-    return [...new Set(options)].filter(
-      start =>
-        start >= 1 &&
-        start <= interval
-    );
-  }
-
-  /*
-    When the grower selects a different rate, test
-    every possible start within the repeating interval.
-
-    This gives the engine enough choices to reach the
-    grower's requested dispenser total rather than
-    settling several dispensers below it.
+    This applies to both the recommended product rate
+    and any grower-selected rate. The engine will later
+    rank the surviving layouts for coverage and crew
+    simplicity.
   */
   const options = [];
 
