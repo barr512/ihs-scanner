@@ -1800,144 +1800,374 @@ function buildIdealLayout(
     - snapping those ideal lines to actual orchard rows.
   */
   const lineCountCandidates =
-    [];
+  [];
 
-  const maximumLineCount =
-    Math.min(
-      input.rows,
-      targetDispensers
+const maximumLineCount =
+  Math.min(
+    input.rows,
+    targetDispensers
+  );
+
+/*
+  Test every possible number of deployment lines.
+
+  Each candidate is temporarily built and snapped
+  to actual orchard trees so we can measure the real
+  spacing it would produce.
+*/
+for (
+  let lineCount = 1;
+  lineCount <= maximumLineCount;
+  lineCount++
+) {
+  const averageCountPerLine =
+    targetDispensers /
+    lineCount;
+
+  const spacingAcrossBlock =
+    blockWidth /
+    lineCount;
+
+  const spacingDownRows =
+    rowLength /
+    averageCountPerLine;
+
+  /*
+    Existing balance measurement.
+
+    A result near zero means across-line spacing
+    and down-row spacing are similar.
+  */
+  const spacingBalanceError =
+    Math.abs(
+      Math.log(
+        spacingAcrossBlock /
+        spacingDownRows
+      )
     );
 
+  let totalRowSnapError = 0;
+
+  const snappedRows =
+    [];
+
   for (
-    let lineCount = 1;
-    lineCount <=
-      maximumLineCount;
-    lineCount++
+    let lineIndex = 0;
+    lineIndex < lineCount;
+    lineIndex++
   ) {
-    const averageCountPerLine =
-      targetDispensers /
-      lineCount;
+    const idealXFeet =
+      (
+        lineIndex +
+        0.5
+      ) *
+      spacingAcrossBlock;
 
-    const spacingAcrossBlock =
-      blockWidth /
-      lineCount;
-
-    const spacingDownRows =
-      rowLength /
-      averageCountPerLine;
-
-    /*
-      A value near zero means that the physical
-      spacing is balanced in both directions.
-    */
-    const spacingBalanceError =
-      Math.abs(
-        Math.log(
-          spacingAcrossBlock /
-          spacingDownRows
-        )
+    const nearestRow =
+      clampNumber(
+        Math.round(
+          idealXFeet /
+          input.rowSpacing +
+          0.5
+        ),
+        1,
+        input.rows
       );
 
-    let totalRowSnapError = 0;
+    const actualRowXFeet =
+      (
+        nearestRow -
+        0.5
+      ) *
+      input.rowSpacing;
 
-    const snappedRows =
+    totalRowSnapError +=
+      Math.abs(
+        actualRowXFeet -
+        idealXFeet
+      );
+
+    snappedRows.push(
+      nearestRow
+    );
+  }
+
+  /*
+    Two mathematical deployment lines cannot snap
+    to the same orchard row.
+  */
+  const uniqueRowCount =
+    new Set(
+      snappedRows
+    ).size;
+
+  if (
+    uniqueRowCount !==
+    lineCount
+  ) {
+    continue;
+  }
+
+  const averageRowSnapError =
+    totalRowSnapError /
+    lineCount;
+
+  const normalizedRowSnapError =
+    averageRowSnapError /
+    input.rowSpacing;
+
+  /*
+    Keep the current selection score unchanged
+    while gathering the new diagnostic measurements.
+  */
+  const lineCountScore =
+    spacingBalanceError +
+    normalizedRowSnapError *
+      0.35;
+
+  const lineCounts =
+    distributeCountAcrossLines(
+      targetDispensers,
+      lineCount
+    );
+
+  const diagnosticPlacements =
+    [];
+
+  const diagnosticUsedLocations =
+    new Set();
+
+  let candidateCouldBeBuilt =
+    true;
+
+  /*
+    Build and snap this candidate exactly as the
+    selected ideal layout would be built.
+  */
+  for (
+    let lineIndex = 0;
+    lineIndex < lineCount;
+    lineIndex++
+  ) {
+    const dispenserCount =
+      lineCounts[lineIndex];
+
+    const spacingDownLine =
+      rowLength /
+      dispenserCount;
+
+    const orchardRow =
+      snappedRows[
+        lineIndex
+      ];
+
+    const staggerFraction =
+      lineIndex % 2 === 0
+        ? 0
+        : 0.5;
+
+    const lineIdealYPositions =
       [];
 
     for (
-      let lineIndex = 0;
-      lineIndex < lineCount;
-      lineIndex++
+      let pointIndex = 0;
+      pointIndex <
+        dispenserCount;
+      pointIndex++
     ) {
-      const idealXFeet =
+      let idealYFeet =
         (
-          lineIndex +
-          0.5
+          pointIndex +
+          0.5 +
+          staggerFraction
         ) *
-        spacingAcrossBlock;
+        spacingDownLine;
 
-      const nearestRow =
-        clampNumber(
-          Math.round(
-            idealXFeet /
-            input.rowSpacing +
-            0.5
-          ),
-          1,
-          input.rows
-        );
+      while (
+        idealYFeet >=
+        rowLength
+      ) {
+        idealYFeet -=
+          rowLength;
+      }
 
-      const actualRowXFeet =
-        (
-          nearestRow -
-          0.5
-        ) *
-        input.rowSpacing;
-
-      totalRowSnapError +=
-        Math.abs(
-          actualRowXFeet -
-          idealXFeet
-        );
-
-      snappedRows.push(
-        nearestRow
+      lineIdealYPositions.push(
+        idealYFeet
       );
     }
 
-    const uniqueRowCount =
-      new Set(
-        snappedRows
-      ).size;
-
     /*
-      A candidate cannot use the same orchard row for
-      two separate ideal deployment lines.
+      Wrapped staggered points must be processed
+      in physical order down the orchard row.
     */
-    if (
-      uniqueRowCount !==
-      lineCount
+    lineIdealYPositions.sort(
+      (a, b) => a - b
+    );
+
+    for (
+      const idealYFeet
+      of lineIdealYPositions
     ) {
-      continue;
+      const nearestTreeResult =
+        findNearestUnusedTree(
+          idealYFeet,
+          orchardRow,
+          treesPerRow,
+          input.treeSpacing,
+          diagnosticUsedLocations
+        );
+
+      if (
+        nearestTreeResult.tree ===
+        null
+      ) {
+        candidateCouldBeBuilt =
+          false;
+
+        break;
+      }
+
+      const locationKey =
+        `${orchardRow}|${nearestTreeResult.tree}`;
+
+      diagnosticUsedLocations.add(
+        locationKey
+      );
+
+      diagnosticPlacements.push({
+        row:
+          orchardRow,
+
+        tree:
+          nearestTreeResult.tree
+      });
     }
 
-    const averageRowSnapError =
-      totalRowSnapError /
-      lineCount;
-
-    const normalizedRowSnapError =
-      averageRowSnapError /
-      input.rowSpacing;
-
-    /*
-      Physical spacing balance is primary.
-
-      Row snapping is secondary because dispensers
-      ultimately must be assigned to real orchard rows.
-    */
-    const lineCountScore =
-      spacingBalanceError +
-      normalizedRowSnapError *
-        0.35;
-
-    lineCountCandidates.push({
-      lineCount,
-      spacingAcrossBlock,
-      spacingDownRows,
-      spacingBalanceError,
-      averageRowSnapError,
-      snappedRows,
-      lineCountScore
-    });
+    if (
+      !candidateCouldBeBuilt
+    ) {
+      break;
+    }
   }
 
-  lineCountCandidates.sort(
-    (a, b) =>
-      a.lineCountScore -
-      b.lineCountScore
+  if (
+    !candidateCouldBeBuilt ||
+    diagnosticPlacements.length !==
+      targetDispensers
+  ) {
+    continue;
+  }
+
+  /*
+    Measure every dispenser's nearest neighbor
+    in the finished snapped candidate.
+  */
+  const diagnosticNeighborDistances =
+    [];
+
+  diagnosticPlacements.forEach(
+    (
+      placement,
+      placementIndex
+    ) => {
+      let nearestDistance =
+        Infinity;
+
+      diagnosticPlacements.forEach(
+        (
+          otherPlacement,
+          otherIndex
+        ) => {
+          if (
+            placementIndex ===
+            otherIndex
+          ) {
+            return;
+          }
+
+          const distance =
+            physicalPlacementDistance(
+              placement,
+              otherPlacement,
+              input
+            );
+
+          nearestDistance =
+            Math.min(
+              nearestDistance,
+              distance
+            );
+        }
+      );
+
+      diagnosticNeighborDistances.push(
+        nearestDistance
+      );
+    }
   );
 
-  const selectedLineDesign =
-    lineCountCandidates[0];
+  diagnosticNeighborDistances.sort(
+    (a, b) => a - b
+  );
+
+  const averageNearestDistance =
+    diagnosticNeighborDistances.reduce(
+      (total, distance) =>
+        total + distance,
+      0
+    ) /
+    diagnosticNeighborDistances.length;
+
+  const minimumNearestDistance =
+    diagnosticNeighborDistances[0];
+
+  const maximumNearestDistance =
+    diagnosticNeighborDistances[
+      diagnosticNeighborDistances.length -
+      1
+    ];
+
+  /*
+    These values are diagnostic only for now.
+    They do not yet change which candidate wins.
+  */
+  const averageSpacingDifference =
+    Math.abs(
+      averageNearestDistance -
+      expectedSpacing
+    );
+
+  const neighborDistanceRange =
+    maximumNearestDistance -
+    minimumNearestDistance;
+
+  lineCountCandidates.push({
+    lineCount,
+    spacingAcrossBlock,
+    spacingDownRows,
+    spacingBalanceError,
+    averageRowSnapError,
+    snappedRows,
+    lineCounts,
+    lineCountScore,
+
+    averageNearestDistance,
+    minimumNearestDistance,
+    maximumNearestDistance,
+
+    averageSpacingDifference,
+    neighborDistanceRange
+  });
+}
+
+lineCountCandidates.sort(
+  (a, b) =>
+    a.lineCountScore -
+    b.lineCountScore
+);
+
+const selectedLineDesign =
+  lineCountCandidates[0];;
 
   if (!selectedLineDesign) {
     return null;
