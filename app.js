@@ -1096,6 +1096,339 @@ function auditAssignedCoverageArea(
     averageAssignedArea
   };
 }
+function auditWholeBlockBanding(
+  placements,
+  orchard,
+  input
+) {
+  if (
+    !placements.length ||
+    orchard.rows <= 0 ||
+    orchard.rowLength <= 0
+  ) {
+    return {
+      passesBandingAudit: false,
+      bandingScore: Infinity,
+      alongRowVariation: Infinity,
+      acrossRowVariation: Infinity
+    };
+  }
+
+  /*
+    The expected physical spacing for the selected
+    dispenser rate.
+  */
+  const expectedSpacing =
+    Math.sqrt(
+      43560 /
+      input.targetRate
+    );
+
+  /*
+    Approximate physical dimensions of the block.
+
+    The extra row-spacing width gives the outside rows
+    their normal share of orchard area.
+  */
+  const blockWidth =
+    orchard.rows *
+    input.rowSpacing;
+
+  const blockLength =
+    orchard.rowLength;
+
+  /*
+    Store the actual physical location of every
+    dispenser in the completed layout.
+  */
+  const rowCoordinates =
+    placements.map(place =>
+      (
+        place.row -
+        0.5
+      ) *
+      input.rowSpacing
+    );
+
+  const treeCoordinates =
+    placements.map(place =>
+      (
+        place.tree -
+        0.5
+      ) *
+      input.treeSpacing
+    );
+
+  /*
+    Scan overlapping physical strips along one axis.
+
+    This preserves the actual location of dispensers.
+    It does not reduce the whole block immediately to
+    one average or nearest-neighbor measurement.
+  */
+  function scanAxis(
+    coordinates,
+    axisLength
+  ) {
+    const windowSize =
+      Math.min(
+        axisLength,
+        expectedSpacing * 1.1
+      );
+
+    const stepSize =
+      windowSize / 2;
+
+    /*
+      An axis that is too short cannot contain enough
+      separate sections for a meaningful banding test.
+    */
+    if (
+      axisLength <
+      windowSize * 2.25
+    ) {
+      return {
+        passes: true,
+        variation: 0,
+        maximumRelativeCount: 1,
+        minimumRelativeCount: 1,
+        maximumAdjacentChange: 0,
+        emptyWindowFraction: 0
+      };
+    }
+
+    const stripCounts = [];
+
+    for (
+      let start = 0;
+      start <=
+        axisLength -
+        windowSize +
+        0.0001;
+      start += stepSize
+    ) {
+      const end =
+        start +
+        windowSize;
+
+      let count = 0;
+
+      coordinates.forEach(
+        coordinate => {
+          if (
+            coordinate >= start &&
+            coordinate < end
+          ) {
+            count++;
+          }
+        }
+      );
+
+      stripCounts.push(count);
+    }
+
+    if (
+      stripCounts.length < 3
+    ) {
+      return {
+        passes: true,
+        variation: 0,
+        maximumRelativeCount: 1,
+        minimumRelativeCount: 1,
+        maximumAdjacentChange: 0,
+        emptyWindowFraction: 0
+      };
+    }
+
+    /*
+      Expected number of dispensers in a strip if the
+      completed pattern is evenly distributed along
+      this axis.
+    */
+    const expectedCount =
+      placements.length *
+      (
+        windowSize /
+        axisLength
+      );
+
+    /*
+      Do not use an unstable strip test when each
+      window would contain almost no dispensers.
+    */
+    if (
+      expectedCount < 1.5
+    ) {
+      return {
+        passes: true,
+        variation: 0,
+        maximumRelativeCount: 1,
+        minimumRelativeCount: 1,
+        maximumAdjacentChange: 0,
+        emptyWindowFraction: 0
+      };
+    }
+
+    const averageCount =
+      stripCounts.reduce(
+        (total, count) =>
+          total + count,
+        0
+      ) /
+      stripCounts.length;
+
+    const variance =
+      stripCounts.reduce(
+        (total, count) =>
+          total +
+          (
+            count -
+            averageCount
+          ) ** 2,
+        0
+      ) /
+      stripCounts.length;
+
+    const standardDeviation =
+      Math.sqrt(variance);
+
+    const variation =
+      averageCount > 0
+        ? standardDeviation /
+          averageCount
+        : Infinity;
+
+    const maximumCount =
+      Math.max(...stripCounts);
+
+    const minimumCount =
+      Math.min(...stripCounts);
+
+    const maximumRelativeCount =
+      maximumCount /
+      expectedCount;
+
+    const minimumRelativeCount =
+      minimumCount /
+      expectedCount;
+
+    let maximumAdjacentChange = 0;
+
+    for (
+      let index = 1;
+      index < stripCounts.length;
+      index++
+    ) {
+      const adjacentChange =
+        Math.abs(
+          stripCounts[index] -
+          stripCounts[index - 1]
+        ) /
+        expectedCount;
+
+      maximumAdjacentChange =
+        Math.max(
+          maximumAdjacentChange,
+          adjacentChange
+        );
+    }
+
+    const emptyWindowCount =
+      stripCounts.filter(
+        count => count === 0
+      ).length;
+
+    const emptyWindowFraction =
+      emptyWindowCount /
+      stripCounts.length;
+
+    /*
+      These limits reject repeated dense/open bands
+      while allowing normal variation near block edges.
+    */
+    const passes =
+      variation <= 0.38 &&
+      maximumRelativeCount <= 1.75 &&
+      minimumRelativeCount >= 0.25 &&
+      maximumAdjacentChange <= 1.15 &&
+      emptyWindowFraction <= 0.10;
+
+    return {
+      passes,
+      variation,
+      maximumRelativeCount,
+      minimumRelativeCount,
+      maximumAdjacentChange,
+      emptyWindowFraction
+    };
+  }
+
+  /*
+    Scan both physical directions.
+
+    alongRowScan detects bands occurring at repeated
+    tree positions down the rows.
+
+    acrossRowScan detects uneven concentration across
+    the width of the orchard.
+  */
+  const alongRowScan =
+    scanAxis(
+      treeCoordinates,
+      blockLength
+    );
+
+  const acrossRowScan =
+    scanAxis(
+      rowCoordinates,
+      blockWidth
+    );
+
+  const passesBandingAudit =
+    alongRowScan.passes &&
+    acrossRowScan.passes;
+
+  const bandingScore =
+    alongRowScan.variation +
+    acrossRowScan.variation +
+    alongRowScan.maximumAdjacentChange +
+    acrossRowScan.maximumAdjacentChange;
+
+  return {
+    passesBandingAudit,
+    bandingScore,
+
+    alongRowVariation:
+      alongRowScan.variation,
+
+    acrossRowVariation:
+      acrossRowScan.variation,
+
+    alongRowMaximumRelativeCount:
+      alongRowScan
+        .maximumRelativeCount,
+
+    acrossRowMaximumRelativeCount:
+      acrossRowScan
+        .maximumRelativeCount,
+
+    alongRowMinimumRelativeCount:
+      alongRowScan
+        .minimumRelativeCount,
+
+    acrossRowMinimumRelativeCount:
+      acrossRowScan
+        .minimumRelativeCount,
+
+    alongRowMaximumAdjacentChange:
+      alongRowScan
+        .maximumAdjacentChange,
+
+    acrossRowMaximumAdjacentChange:
+      acrossRowScan
+        .maximumAdjacentChange
+  };
+}
 function buildRepeatingTreePattern(
   treesPerRow,
   interval,
@@ -1519,23 +1852,25 @@ if (
     input
   );
 
-const assignedAreaAudit =
-  auditAssignedCoverageArea(
+const bandingAudit =
+  auditWholeBlockBanding(
     placements,
     orchard,
     input
   );
 
 /*
-  The completed layout must pass both checks:
+  The finished layout must pass both audits.
 
-  1. Physical gap and cluster spacing.
-  2. Similar orchard area assigned to each dispenser.
+  The coverage audit checks distances, gaps and clusters.
+
+  The banding audit scans consecutive physical sections
+  of the complete block and rejects repeated dense and
+  sparse strips.
 */
 if (
   !coverageQuality.passesSpacingAudit ||
-  !assignedAreaAudit
-    .passesAssignedAreaAudit
+  !bandingAudit.passesBandingAudit
 ) {
   continue;
 }
