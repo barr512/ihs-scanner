@@ -3934,13 +3934,7 @@ return simplicityA - simplicityB;
   };
 }
 /*
-/*
-  Generate the main recommendation using the validated
-  ideal-layout engine.
 
-  This uses the same layout and display path as the
-  tested mathematical demo.
-*/
 /*
   Generate repeatable deployment plans.
 
