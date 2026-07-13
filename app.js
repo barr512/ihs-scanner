@@ -3934,13 +3934,16 @@ return simplicityA - simplicityB;
   };
 }
 /*
+/*
   Generate the main recommendation using the validated
   ideal-layout engine.
 
-  The old A/B pattern search remains elsewhere in the
-  file for now, but Generate Plans no longer calls it.
+  This uses the same layout and display path as the
+  tested mathematical demo.
 */
-
+function generatePlans() {
+  showIdealLayoutDemo();
+}
 
 /*
   Convert the validated ideal layout into the same
