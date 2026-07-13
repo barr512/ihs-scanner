@@ -2042,34 +2042,77 @@ for (
       )
     );
 
-    /*
-    Select one repeating row interval for the complete
-    deployment-row sequence.
+     /*
+    Snap each mathematical deployment line to its
+    nearest actual orchard row.
 
-    This replaces independent line-by-line rounding,
-    which could create a single extra row skip in the
-    middle of an otherwise regular pattern.
+    This is the version that produced the good
+    mathematical layouts during demo testing.
   */
-  const repeatingRowDesign =
-    findBestRepeatingDeploymentRows(
-      lineCount,
-      input.rows,
-      spacingAcrossBlock,
-      input.rowSpacing
+  let totalRowSnapError = 0;
+
+  const snappedRows = [];
+
+  for (
+    let lineIndex = 0;
+    lineIndex < lineCount;
+    lineIndex++
+  ) {
+    const idealXFeet =
+      (
+        lineIndex +
+        0.5
+      ) *
+      spacingAcrossBlock;
+
+    const nearestRow =
+      clampNumber(
+        Math.round(
+          idealXFeet /
+          input.rowSpacing +
+          0.5
+        ),
+        1,
+        input.rows
+      );
+
+    const actualRowXFeet =
+      (
+        nearestRow -
+        0.5
+      ) *
+      input.rowSpacing;
+
+    totalRowSnapError +=
+      Math.abs(
+        actualRowXFeet -
+        idealXFeet
+      );
+
+    snappedRows.push(
+      nearestRow
     );
+  }
+
+  /*
+    Two mathematical deployment lines cannot occupy
+    the same orchard row.
+  */
+  const uniqueRowCount =
+    new Set(
+      snappedRows
+    ).size;
 
   if (
-    !repeatingRowDesign
+    uniqueRowCount !==
+    lineCount
   ) {
     continue;
   }
 
-  const snappedRows =
-    repeatingRowDesign.rows;
-
   const averageRowSnapError =
-    repeatingRowDesign
-      .averageSnapError;
+    totalRowSnapError /
+    lineCount;
 
   const normalizedRowSnapError =
     averageRowSnapError /
