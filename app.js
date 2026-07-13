@@ -1,4 +1,4 @@
-const generateBtn = document.getElementById("generateBtn");
+no const generateBtn = document.getElementById("generateBtn");
 const summaryEl = document.getElementById("summary");
 const optionsEl = document.getElementById("options");
 const mapSection = document.getElementById("mapSection");
@@ -3475,28 +3475,21 @@ if (!patternRemainsStaggered) {
   Permit no more than one dispenser of unavoidable
   rounding difference during the normal search.
 */
-if (
-  input.usingCustomProductRate &&
-  !inventoryIsLimited &&
-  !showClosest &&
-  rateDifference > 1
-) {
-  continue;
-}
-
 /*
-  At the product's recommended rate, retain the normal
-  three-percent tolerance.
+  Normal search allows candidates within three percent
+  of the entered rate, whether the rate came from the
+  product recommendation or was entered by the grower.
+
+  Candidate grouping later uses the rounded displayed
+  rate, so a calculated rate of 33.5 is treated as 34.
 */
 if (
-  !input.usingCustomProductRate &&
   !inventoryIsLimited &&
   !showClosest &&
   percentOffTarget > 0.03
 ) {
   continue;
 }
-
             if (
               inventoryIsLimited &&
               count <
@@ -3870,26 +3863,41 @@ return simplicityA - simplicityB;
     The orchard geometry still determines the row
     interval and total number of treated rows.
   */
-  const exactPatterns =
-    uniquePatterns.filter(
-      pattern =>
-        pattern.count ===
-        targetDispensers
-    );
+ /*
+  Classify patterns according to the whole-number rate
+  displayed to the grower.
 
-  const lowerPatterns =
-    uniquePatterns.filter(
-      pattern =>
-        pattern.count <
-        targetDispensers
-    );
+  Example:
+  33.5 per acre is displayed and treated as 34.
+*/
+const requestedDisplayedRate =
+  Math.round(
+    input.targetRate
+  );
 
-  const higherPatterns =
-    uniquePatterns.filter(
-      pattern =>
-        pattern.count >
-        targetDispensers
-    );
+const exactPatterns =
+  uniquePatterns.filter(
+    pattern =>
+      Math.round(
+        pattern.resultingRate
+      ) === requestedDisplayedRate
+  );
+
+const lowerPatterns =
+  uniquePatterns.filter(
+    pattern =>
+      Math.round(
+        pattern.resultingRate
+      ) < requestedDisplayedRate
+  );
+
+const higherPatterns =
+  uniquePatterns.filter(
+    pattern =>
+      Math.round(
+        pattern.resultingRate
+      ) > requestedDisplayedRate
+  );
 
   /*
     For reduced-count patterns, first prefer the
