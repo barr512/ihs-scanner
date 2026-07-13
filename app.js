@@ -3862,71 +3862,210 @@ return simplicityA - simplicityB;
     };
   }
 
-  /*
-    Patterns 1 and 2 are ranked normally.
+   /*
+    Separate acceptable repeatable patterns by their
+    relationship to the expected purchased quantity.
+
+    This does not affect how patterns are generated.
+    The orchard geometry still determines the row
+    interval and total number of treated rows.
   */
-
-  const selectedPatterns =
-    uniquePatterns.slice(0, 2);
-
-  const selectedDisplayedRate =
-    Math.round(input.targetRate);
-
-  const selectedRateAlreadyShown =
-    selectedPatterns.some(pattern =>
-      Math.round(
-        pattern.resultingRate
-      ) === selectedDisplayedRate
+  const exactPatterns =
+    uniquePatterns.filter(
+      pattern =>
+        pattern.count ===
+        targetDispensers
     );
 
-  if (selectedRateAlreadyShown) {
-    const normalThirdPattern =
-      uniquePatterns.find(pattern =>
+  const lowerPatterns =
+    uniquePatterns.filter(
+      pattern =>
+        pattern.count <
+        targetDispensers
+    );
+
+  const higherPatterns =
+    uniquePatterns.filter(
+      pattern =>
+        pattern.count >
+        targetDispensers
+    );
+
+  /*
+    For reduced-count patterns, first prefer the
+    quantity closest to the purchased amount.
+
+    Coverage quality and repeatability have already
+    been used to rank patterns within the engine.
+  */
+  lowerPatterns.sort(
+    (a, b) => {
+      const countDifference =
+        b.count - a.count;
+
+      if (
+        countDifference !== 0
+      ) {
+        return countDifference;
+      }
+
+      return a.score - b.score;
+    }
+  );
+
+  /*
+    Higher-density patterns remain available, but
+    prefer the one requiring the fewest additional
+    dispensers before comparing its quality score.
+  */
+  higherPatterns.sort(
+    (a, b) => {
+      const countDifference =
+        a.count - b.count;
+
+      if (
+        countDifference !== 0
+      ) {
+        return countDifference;
+      }
+
+      return a.score - b.score;
+    }
+  );
+
+  exactPatterns.forEach(
+    pattern => {
+      pattern.recommendationGroup =
+        "exact";
+
+      pattern.leftoverDispensers =
+        0;
+
+      pattern.additionalDispensers =
+        0;
+    }
+  );
+
+  lowerPatterns.forEach(
+    pattern => {
+      pattern.recommendationGroup =
+        "lower";
+
+      pattern.leftoverDispensers =
+        targetDispensers -
+        pattern.count;
+
+      pattern.additionalDispensers =
+        0;
+    }
+  );
+
+  higherPatterns.forEach(
+    pattern => {
+      pattern.recommendationGroup =
+        "higher";
+
+      pattern.leftoverDispensers =
+        0;
+
+      pattern.additionalDispensers =
+        pattern.count -
+        targetDispensers;
+    }
+  );
+
+  const selectedPatterns = [];
+
+  function addPattern(
+    pattern
+  ) {
+    if (
+      pattern &&
+      !selectedPatterns.includes(
+        pattern
+      )
+    ) {
+      selectedPatterns.push(
+        pattern
+      );
+    }
+  }
+
+  /*
+    Pattern 1:
+    Use the best exact-count pattern when one passes
+    every stagger, gap, cluster, banding and assigned-
+    area audit.
+
+    Otherwise use the closest acceptable lower-count
+    pattern.
+  */
+  if (
+    exactPatterns.length
+  ) {
+    addPattern(
+      exactPatterns[0]
+    );
+  } else if (
+    lowerPatterns.length
+  ) {
+    addPattern(
+      lowerPatterns[0]
+    );
+  } else {
+    addPattern(
+      higherPatterns[0]
+    );
+  }
+
+  /*
+    Pattern 2:
+    Give another option that does not require the
+    grower to purchase additional dispensers.
+  */
+  const secondExactOrLower =
+    [
+      ...exactPatterns,
+      ...lowerPatterns
+    ].find(
+      pattern =>
         !selectedPatterns.includes(
           pattern
         )
-      );
+    );
 
-    if (normalThirdPattern) {
-      selectedPatterns.push(
-        normalThirdPattern
-      );
-    }
-  } else {
-    /*
-      Pattern 3 shows the selected rate when it is
-      absent from Patterns 1 and 2.
-    */
+  addPattern(
+    secondExactOrLower
+  );
 
-    const selectedRatePattern =
-      uniquePatterns.find(pattern =>
-        !selectedPatterns.includes(
-          pattern
-        ) &&
-        Math.round(
-          pattern.resultingRate
-        ) === selectedDisplayedRate
-      );
+  /*
+    Pattern 3:
+    Show the best higher-density alternative, when
+    one exists. It will later be clearly labeled as
+    requiring additional dispensers.
+  */
+  addPattern(
+    higherPatterns[0]
+  );
 
-    if (selectedRatePattern) {
-      selectedPatterns.push(
-        selectedRatePattern
-      );
-    } else {
-      const normalThirdPattern =
-        uniquePatterns.find(pattern =>
-          !selectedPatterns.includes(
-            pattern
-          )
-        );
-
-      if (normalThirdPattern) {
-        selectedPatterns.push(
-          normalThirdPattern
-        );
+  /*
+    If one of the three groups did not contain a
+    pattern, fill the remaining position with the
+    next-best unused acceptable candidate.
+  */
+  uniquePatterns.forEach(
+    pattern => {
+      if (
+        selectedPatterns.length >= 3
+      ) {
+        return;
       }
+
+      addPattern(
+        pattern
+      );
     }
-  }
+  );
 
   return {
     orchard,
@@ -3943,7 +4082,7 @@ return simplicityA - simplicityB;
   must come from the staggered repeatable-pattern engine.
 */
 function generatePlans(showClosest = false) {
-  alert("Generate Plans started");
+  
 
   const input = getInputs();
 
