@@ -3890,89 +3890,340 @@ return simplicityA - simplicityB;
     patterns: selectedPatterns
   };
 }
-function generatePlans(showClosest = false) {
+/*
+  Generate the main recommendation using the validated
+  ideal-layout engine.
+
+  The old A/B pattern search remains elsewhere in the
+  file for now, but Generate Plans no longer calls it.
+*/
+function generatePlans() {
   const input = getInputs();
 
   if (
     !Number.isFinite(input.acres) ||
     input.acres <= 0 ||
+
     !Number.isFinite(input.rows) ||
     input.rows <= 0 ||
+
     !Number.isFinite(input.rowSpacing) ||
     input.rowSpacing <= 0 ||
+
     !Number.isFinite(input.treeSpacing) ||
     input.treeSpacing <= 0 ||
+
     !Number.isFinite(input.targetRate) ||
     input.targetRate <= 0
   ) {
     alert(
       "Please enter acreage, number of rows, row spacing, tree spacing, and dispenser rate before generating plans."
     );
+
     return;
   }
 
-input.labelTargetDispensers =
-  Math.round(input.acres * input.targetRate);
+  /*
+    Do not allow a selected product to be planned
+    outside its label-rate range.
+  */
+  if (
+    input.selectedProduct &&
+    (
+      input.targetRate <
+        input.selectedProduct.min ||
 
-input.inventoryIsLimited =
-  input.availableDispensers &&
-  input.availableDispensers < input.labelTargetDispensers;
+      input.targetRate >
+        input.selectedProduct.max
+    )
+  ) {
+    alert(
+      `Enter a rate between ` +
+      `${input.selectedProduct.min} and ` +
+      `${input.selectedProduct.max} per acre for ` +
+      `${input.selectedProduct.name}.`
+    );
 
-const engineResults = getBestPatterns(
-  input,
-  showClosest
-);
+    return;
+  }
 
-input.showingClosestPatterns = showClosest;
+  const idealLayout =
+    buildIdealLayout(input);
 
-input.targetDispensers =
-  input.inventoryIsLimited
-    ? input.availableDispensers
-    : input.labelTargetDispensers;
+  if (!idealLayout) {
+    alert(
+      "A deployment pattern could not be created for the entered block."
+    );
 
+    return;
+  }
 
-  input.targetAreaPerDispenser = 43560 / input.targetRate;
-  input.estimatedRowLength = engineResults.orchard.rowLength;
-  input.treesPerRow = engineResults.orchard.treesPerRow;
+  input.labelTargetDispensers =
+    Math.round(
+      input.acres *
+      input.targetRate
+    );
+
+  input.inventoryIsLimited =
+    Boolean(
+      input.availableDispensers &&
+      input.availableDispensers <
+        input.labelTargetDispensers
+    );
+
+  input.targetDispensers =
+    idealLayout.targetDispensers;
+
+  input.targetAreaPerDispenser =
+    43560 /
+    input.targetRate;
+
+  input.estimatedRowLength =
+    idealLayout.rowLength;
+
+  input.treesPerRow =
+    idealLayout.treesPerRow;
 
   currentInput = input;
-  currentPlans = engineResults.patterns.map(pattern =>
-  convertEnginePatternToUiPlan(pattern, engineResults.orchard, input)
-);
 
-assignPatternBadges(currentPlans);
+  currentPlans = [
+    convertIdealLayoutToUiPlan(
+      idealLayout,
+      input
+    )
+  ];
 
-  
+  assignPatternBadges(
+    currentPlans
+  );
 
-  renderSummary(input, engineResults.orchard.trees.length);
-  renderOptions(currentPlans);
+  renderSummary(
+    input,
+    input.rows *
+      input.treesPerRow
+  );
+
+  renderOptions(
+    currentPlans
+  );
+
   showOptionsScreen();
 }
 
-function convertEnginePatternToUiPlan(pattern, orchard, input) {
+/*
+  Convert the validated ideal layout into the same
+  plan shape already used by the app's cards, map,
+  and instruction screens.
+*/
+function convertIdealLayoutToUiPlan(
+  idealLayout,
+  input
+) {
   const layout = [];
 
-  for (let r = 0; r < orchard.rows; r++) {
-    layout.push(Array(orchard.treesPerRow).fill(false));
+  for (
+    let rowIndex = 0;
+    rowIndex < input.rows;
+    rowIndex++
+  ) {
+    layout.push(
+      Array(
+        idealLayout.treesPerRow
+      ).fill(false)
+    );
   }
 
-  pattern.placements.forEach(place => {
-    layout[place.row - 1][place.tree - 1] = true;
-  });
+  idealLayout.placements.forEach(
+    placement => {
+      layout[
+        placement.row - 1
+      ][
+        placement.tree - 1
+      ] = true;
+    }
+  );
+
+  const actualRate =
+    idealLayout.targetDispensers /
+    input.acres;
+
+  const actualAreaPerDispenser =
+    idealLayout.blockArea /
+    idealLayout.targetDispensers;
+
+  const percentCoverageDifference =
+    Math.abs(
+      actualAreaPerDispenser -
+      input.targetAreaPerDispenser
+    ) /
+    input.targetAreaPerDispenser;
+
+  const firstDeploymentRow =
+    idealLayout.deploymentLines[0];
+
+  const secondDeploymentRow =
+    idealLayout.deploymentLines[1] ||
+    firstDeploymentRow;
+
+  const patternAInterval =
+    Math.max(
+      1,
+      Math.round(
+        firstDeploymentRow.spacingDownLine /
+        input.treeSpacing
+      )
+    );
+
+  const patternBInterval =
+    Math.max(
+      1,
+      Math.round(
+        secondDeploymentRow.spacingDownLine /
+        input.treeSpacing
+      )
+    );
+
+  const patternAStart =
+    firstDeploymentRow.placements.length
+      ? firstDeploymentRow
+          .placements[0]
+          .tree
+      : 1;
+
+  const patternBStart =
+    secondDeploymentRow.placements.length
+      ? secondDeploymentRow
+          .placements[0]
+          .tree
+      : patternAStart;
+
+  const selectedRows =
+    idealLayout.deploymentLines
+      .map(
+        line =>
+          line.orchardRow
+      )
+      .sort(
+        (a, b) => a - b
+      );
+
+  let rowInterval = 1;
+
+  if (
+    selectedRows.length >
+    1
+  ) {
+    rowInterval =
+      selectedRows[1] -
+      selectedRows[0];
+  }
 
   return {
-    ...pattern,
-    label: "Optimized Pattern",
+    patternType:
+      "ideal-repeatable-layout",
+
+    label:
+      "Optimized Pattern",
+
     note: "",
+
     layout,
-    actualRate: pattern.resultingRate,
+
+    placements:
+      idealLayout.placements,
+
+    deploymentLines:
+      idealLayout.deploymentLines,
+
+    selectedRows,
+
+    count:
+      idealLayout.targetDispensers,
+
+    targetDispensers:
+      idealLayout.targetDispensers,
+
+    actualRate,
+
+    resultingRate:
+      actualRate,
+
     percentRateDifference:
-      Math.abs(pattern.count - pattern.targetDispensers) /
-      pattern.targetDispensers,
-    percentCoverageDifference: pattern.coverageDifferencePercent,
-    betweenRowsFeet: pattern.rowInterval * input.rowSpacing,
-    betweenTreesFeet: pattern.treeInterval * input.treeSpacing,
-    actualAreaPerDispenser: pattern.actualAreaPerDispenser
+      Math.abs(
+        idealLayout.targetDispensers -
+        input.labelTargetDispensers
+      ) /
+      input.labelTargetDispensers,
+
+    percentCoverageDifference,
+
+    coverageDifferencePercent:
+      percentCoverageDifference,
+
+    actualAreaPerDispenser,
+
+    rowInterval,
+
+    patternAInterval,
+    patternBInterval,
+
+    patternAStart,
+    patternBStart,
+
+    treeInterval:
+      Math.round(
+        (
+          patternAInterval +
+          patternBInterval
+        ) /
+        2
+      ),
+
+    offset: 1,
+
+    lineCount:
+      idealLayout.lineCount,
+
+    spacingAcrossBlock:
+      idealLayout.spacingAcrossBlock,
+
+    averageSpacingDownRows:
+      idealLayout.averageSpacingDownRows,
+
+    expectedSpacing:
+      idealLayout.expectedSpacing,
+
+    averageSnapDistance:
+      idealLayout.averageSnapDistance,
+
+    worstSnapDistance:
+      idealLayout.worstSnapDistance,
+
+    averageNearestNeighborDistance:
+      idealLayout
+        .averageNearestNeighborDistance,
+
+    minimumNearestNeighborDistance:
+      idealLayout
+        .minimumNearestNeighborDistance,
+
+    maximumNearestNeighborDistance:
+      idealLayout
+        .maximumNearestNeighborDistance,
+
+    betweenRowsFeet:
+      rowInterval *
+      input.rowSpacing,
+
+    betweenTreesFeet:
+      (
+        (
+          patternAInterval +
+          patternBInterval
+        ) /
+        2
+      ) *
+      input.treeSpacing
   };
 }
 
