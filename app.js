@@ -2160,14 +2160,132 @@ for (
   });
 }
 
+/*
+  Rank each possible deployment-line design by the
+  actual snapped dispenser layout it produced.
+
+  The mathematical estimate remains useful, but the
+  finished tree-to-tree placement is now the primary
+  basis for choosing the ideal layout.
+*/
+function getIdealLineDesignScore(
+  candidate
+) {
+  /*
+    Average nearest-neighbor spacing should remain
+    close to the expected equal-area spacing.
+  */
+  const averageSpacingError =
+    Math.abs(
+      candidate.averageNearestDistance -
+      expectedSpacing
+    ) /
+    expectedSpacing;
+
+  /*
+    A very close pair indicates clustering.
+  */
+  const preferredMinimumDistance =
+    expectedSpacing * 0.65;
+
+  const closePairPenalty =
+    candidate.minimumNearestDistance <
+      preferredMinimumDistance
+      ? (
+          preferredMinimumDistance -
+          candidate.minimumNearestDistance
+        ) /
+        expectedSpacing
+      : 0;
+
+  /*
+    A highly isolated dispenser indicates an open
+    area or uneven spacing elsewhere in the block.
+  */
+  const preferredMaximumDistance =
+    expectedSpacing * 1.35;
+
+  const isolatedPointPenalty =
+    candidate.maximumNearestDistance >
+      preferredMaximumDistance
+      ? (
+          candidate.maximumNearestDistance -
+          preferredMaximumDistance
+        ) /
+        expectedSpacing
+      : 0;
+
+  /*
+    Measure how much nearest-neighbor spacing varies
+    across the completed layout.
+  */
+  const spacingRangePenalty =
+    candidate.neighborDistanceRange /
+    expectedSpacing;
+
+  /*
+    Orchard-row snapping and theoretical line balance
+    remain tie-breakers rather than the main objective.
+  */
+  const rowSnapPenalty =
+    candidate.averageRowSnapError /
+    input.rowSpacing;
+
+  return (
+    averageSpacingError * 4 +
+    spacingRangePenalty * 3 +
+    closePairPenalty * 6 +
+    isolatedPointPenalty * 5 +
+    rowSnapPenalty * 0.35 +
+    candidate.spacingBalanceError * 0.25
+  );
+}
+
+lineCountCandidates.forEach(
+  candidate => {
+    candidate.idealDesignScore =
+      getIdealLineDesignScore(
+        candidate
+      );
+  }
+);
+
 lineCountCandidates.sort(
-  (a, b) =>
-    a.lineCountScore -
-    b.lineCountScore
+  (a, b) => {
+    if (
+      a.idealDesignScore !==
+      b.idealDesignScore
+    ) {
+      return (
+        a.idealDesignScore -
+        b.idealDesignScore
+      );
+    }
+
+    /*
+      When two completed layouts are nearly equal,
+      prefer the design with less snapping from its
+      mathematical coordinates.
+    */
+    if (
+      a.averageRowSnapError !==
+      b.averageRowSnapError
+    ) {
+      return (
+        a.averageRowSnapError -
+        b.averageRowSnapError
+      );
+    }
+
+    return (
+      a.lineCountScore -
+      b.lineCountScore
+    );
+  }
 );
 
 const selectedLineDesign =
-  lineCountCandidates[0];;
+  lineCountCandidates[0];
 
   if (!selectedLineDesign) {
     return null;
