@@ -3943,6 +3943,8 @@ return simplicityA - simplicityB;
   must come from the staggered repeatable-pattern engine.
 */
 function generatePlans(showClosest = false) {
+  alert("Generate Plans started");
+
   const input = getInputs();
 
   if (
