@@ -3427,93 +3427,7 @@ if (!patternRemainsStaggered) {
                 });
               }
             );
-/*
-  Compare this repeatable crew pattern with the
-  ideal mathematical dispenser locations.
-
-  Lower scores mean the repeatable pattern more
-  closely follows the ideal layout.
-*/
-let totalIdealMatchDistance = 0;
-
-idealLayout.placements.forEach(
-  idealPlacement => {
-    let nearestCandidateDistance =
-      Infinity;
-
-    placements.forEach(
-      candidatePlacement => {
-        const distance =
-          physicalPlacementDistance(
-            idealPlacement,
-            candidatePlacement,
-            input
-          );
-
-        nearestCandidateDistance =
-          Math.min(
-            nearestCandidateDistance,
-            distance
-          );
-      }
-    );
-
-    totalIdealMatchDistance +=
-      nearestCandidateDistance;
-  }
-);
-
-const averageIdealMatchDistance =
-  idealLayout.placements.length
-    ? totalIdealMatchDistance /
-      idealLayout.placements.length
-    : Infinity;
-
-/*
-  Also check in the opposite direction.
-
-  This prevents a candidate from appearing to match
-  the ideal layout merely because it covers each ideal
-  point while placing additional dispensers elsewhere.
-*/
-let totalCandidateToIdealDistance = 0;
-
-placements.forEach(
-  candidatePlacement => {
-    let nearestIdealDistance =
-      Infinity;
-
-    idealLayout.placements.forEach(
-      idealPlacement => {
-        const distance =
-          physicalPlacementDistance(
-            candidatePlacement,
-            idealPlacement,
-            input
-          );
-
-        nearestIdealDistance =
-          Math.min(
-            nearestIdealDistance,
-            distance
-          );
-      }
-    );
-
-    totalCandidateToIdealDistance +=
-      nearestIdealDistance;
-  }
-);
-
-const averageCandidateToIdealDistance =
-  placements.length
-    ? totalCandidateToIdealDistance /
-      placements.length
-    : Infinity;
-
-const idealMatchScore =
-  averageIdealMatchDistance +
-  averageCandidateToIdealDistance;
+;
             const count =
               placements.length;
 
@@ -3682,7 +3596,93 @@ if (
 ) {
   continue;
 }
+/*
+  Compare this repeatable crew pattern with the
+  ideal mathematical dispenser locations.
 
+  Lower scores mean the repeatable pattern more
+  closely follows the ideal layout.
+*/
+let totalIdealMatchDistance = 0;
+
+idealLayout.placements.forEach(
+  idealPlacement => {
+    let nearestCandidateDistance =
+      Infinity;
+
+    placements.forEach(
+      candidatePlacement => {
+        const distance =
+          physicalPlacementDistance(
+            idealPlacement,
+            candidatePlacement,
+            input
+          );
+
+        nearestCandidateDistance =
+          Math.min(
+            nearestCandidateDistance,
+            distance
+          );
+      }
+    );
+
+    totalIdealMatchDistance +=
+      nearestCandidateDistance;
+  }
+);
+
+const averageIdealMatchDistance =
+  idealLayout.placements.length
+    ? totalIdealMatchDistance /
+      idealLayout.placements.length
+    : Infinity;
+
+/*
+  Also check in the opposite direction.
+
+  This prevents a candidate from appearing to match
+  the ideal layout merely because it covers each ideal
+  point while placing additional dispensers elsewhere.
+*/
+let totalCandidateToIdealDistance = 0;
+
+placements.forEach(
+  candidatePlacement => {
+    let nearestIdealDistance =
+      Infinity;
+
+    idealLayout.placements.forEach(
+      idealPlacement => {
+        const distance =
+          physicalPlacementDistance(
+            candidatePlacement,
+            idealPlacement,
+            input
+          );
+
+        nearestIdealDistance =
+          Math.min(
+            nearestIdealDistance,
+            distance
+          );
+      }
+    );
+
+    totalCandidateToIdealDistance +=
+      nearestIdealDistance;
+  }
+);
+
+const averageCandidateToIdealDistance =
+  placements.length
+    ? totalCandidateToIdealDistance /
+      placements.length
+    : Infinity;
+
+const idealMatchScore =
+  averageIdealMatchDistance +
+  averageCandidateToIdealDistance
 const actualAreaPerDispenser =
   blockArea / count;
             const coverageDifferencePercent =
