@@ -3139,7 +3139,11 @@ function showIdealLayoutDemo() {
     behavior: "smooth"
   });
 }
-function getBestPatterns(input, showClosest = false) {
+function getBestPatterns(
+  input,
+  idealLayout,
+  showClosest = false
+) {
   const SQFT_PER_ACRE = 43560;
 
   const blockArea =
@@ -4160,11 +4164,23 @@ function generatePlans(showClosest = false) {
       ? input.availableDispensers
       : input.labelTargetDispensers;
 
-  const engineResults =
-    getBestPatterns(
-      input,
-      showClosest
-    );
+  const idealLayout =
+  buildIdealLayout(input);
+
+if (!idealLayout) {
+  alert(
+    "Unable to generate an ideal mathematical layout for this block."
+  );
+
+  return;
+}
+
+const engineResults =
+  getBestPatterns(
+    input,
+    idealLayout,
+    showClosest
+  );
 
   input.showingClosestPatterns =
     showClosest;
