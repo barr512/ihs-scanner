@@ -3199,7 +3199,53 @@ function getBestPatterns(
   }
 
     const candidatePatterns = [];
+/*
+  Store one mathematical ideal layout for each
+  whole-number deployment-rate class.
 
+  This ensures that a 34-per-acre candidate is always
+  evaluated against the same 34-per-acre ideal layout,
+  regardless of the rate originally entered.
+*/
+const idealLayoutsByRate =
+  new Map();
+
+function getEvaluationContext(
+  effectiveRate
+) {
+  if (
+    idealLayoutsByRate.has(
+      effectiveRate
+    )
+  ) {
+    return idealLayoutsByRate.get(
+      effectiveRate
+    );
+  }
+
+  const evaluationInput = {
+    ...input,
+    targetRate:
+      effectiveRate
+  };
+
+  const evaluationIdealLayout =
+    buildIdealLayout(
+      evaluationInput
+    );
+
+  const context = {
+    evaluationInput,
+    evaluationIdealLayout
+  };
+
+  idealLayoutsByRate.set(
+    effectiveRate,
+    context
+  );
+
+  return context;
+}
   /*
     Diagnostic storage only.
 
@@ -3456,7 +3502,31 @@ if (!patternRemainsStaggered) {
 
             const resultingRate =
               count / input.acres;
+/*
+  Grower-facing deployment rates are whole numbers.
 
+  Examples:
+  32.5 through 33.4 belong to the 33-per-acre class.
+  33.5 through 34.4 belong to the 34-per-acre class.
+*/
+const effectiveRate =
+  Math.round(
+    resultingRate
+  );
+
+const {
+  evaluationInput,
+  evaluationIdealLayout
+} =
+  getEvaluationContext(
+    effectiveRate
+  );
+
+if (
+  !evaluationIdealLayout
+) {
+  continue;
+}
             if (
               input.selectedProduct &&
               resultingRate >
