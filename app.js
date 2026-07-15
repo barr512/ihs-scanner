@@ -3197,8 +3197,19 @@ function getBestPatterns(
     }
   }
 
-  const candidatePatterns = [];
-let bestRejectedPattern = null;
+    const candidatePatterns = [];
+
+  /*
+    Diagnostic storage only.
+
+    This records the strongest rejected candidates so
+    we can see exactly which audit prevented them from
+    becoming grower-facing patterns.
+  */
+  const rejectedPatterns = [];
+
+  let bestRejectedPattern = null;
+
   for (
     let rowInterval = 1;
     rowInterval <= Math.min(10, input.rows);
@@ -3587,10 +3598,285 @@ if (
   !showClosest &&
   !passesOptimizedAudit
 ) {
+  const rejectionReasons = [];
+
+  if (
+    !coverageQuality
+      .passesSpacingAudit
+  ) {
+    rejectionReasons.push(
+      "Spacing audit"
+    );
+  }
+
+  if (
+    !bandingAudit
+      .passesBandingAudit
+  ) {
+    rejectionReasons.push(
+      "Banding audit"
+    );
+  }
+
+  if (
+    !assignedAreaAudit
+      .passesAssignedAreaAudit
+  ) {
+    rejectionReasons.push(
+      "Assigned-area audit"
+    );
+  }
+
+  /*
+    Record the individual spacing-audit failures.
+
+    These explain why passesSpacingAudit was false.
+  */
+  const spacingFailures = [];
+
+  if (
+    coverageQuality
+      .closestDispenserDistance <
+    expectedSpacing * 0.45
+  ) {
+    spacingFailures.push(
+      "Closest dispenser pair too close"
+    );
+  }
+
+  if (
+    coverageQuality
+      .neighborDistance50 <
+    expectedSpacing * 0.60
+  ) {
+    spacingFailures.push(
+      "Median dispenser spacing too close"
+    );
+  }
+
+  if (
+    coverageQuality
+      .neighborDistanceSpread >
+    1.45
+  ) {
+    spacingFailures.push(
+      "Neighbor-distance spread too large"
+    );
+  }
+
+  if (
+    coverageQuality
+      .localDensitySpread >
+    2
+  ) {
+    spacingFailures.push(
+      "Local-density spread too large"
+    );
+  }
+
+  if (
+    coverageQuality
+      .percentile95 >
+    expectedSpacing * 0.80
+  ) {
+    spacingFailures.push(
+      "95th-percentile coverage gap too large"
+    );
+  }
+
+  if (
+    coverageQuality
+      .worstNearestDistance >
+    expectedSpacing
+  ) {
+    spacingFailures.push(
+      "Worst coverage gap too large"
+    );
+  }
+
+  if (
+    coverageQuality
+      .clusterPenalty >
+    0.08
+  ) {
+    spacingFailures.push(
+      "Cluster penalty too high"
+    );
+  }
+
+  if (
+    coverageQuality
+      .gapPenalty >
+    0.08
+  ) {
+    spacingFailures.push(
+      "Gap penalty too high"
+    );
+  }
+
+  /*
+    Record the individual banding-audit failures.
+  */
+  const bandingFailures = [];
+
+  if (
+    bandingAudit
+      .alongRowVariation >
+    0.38
+  ) {
+    bandingFailures.push(
+      "Along-row variation too high"
+    );
+  }
+
+  if (
+    bandingAudit
+      .acrossRowVariation >
+    0.38
+  ) {
+    bandingFailures.push(
+      "Across-row variation too high"
+    );
+  }
+
+  if (
+    bandingAudit
+      .alongRowMaximumRelativeCount >
+    1.75
+  ) {
+    bandingFailures.push(
+      "Along-row dense band too large"
+    );
+  }
+
+  if (
+    bandingAudit
+      .acrossRowMaximumRelativeCount >
+    1.75
+  ) {
+    bandingFailures.push(
+      "Across-row dense band too large"
+    );
+  }
+
+  if (
+    bandingAudit
+      .alongRowMinimumRelativeCount <
+    0.25
+  ) {
+    bandingFailures.push(
+      "Along-row open band too large"
+    );
+  }
+
+  if (
+    bandingAudit
+      .acrossRowMinimumRelativeCount <
+    0.25
+  ) {
+    bandingFailures.push(
+      "Across-row open band too large"
+    );
+  }
+
+  if (
+    bandingAudit
+      .alongRowMaximumAdjacentChange >
+    1.15
+  ) {
+    bandingFailures.push(
+      "Along-row adjacent band change too large"
+    );
+  }
+
+  if (
+    bandingAudit
+      .acrossRowMaximumAdjacentChange >
+    1.15
+  ) {
+    bandingFailures.push(
+      "Across-row adjacent band change too large"
+    );
+  }
+
+  /*
+    Record the individual assigned-area failures.
+  */
+  const assignedAreaFailures = [];
+
+  const minimumAllowedAssignedArea =
+    targetAreaPerDispenser *
+    0.55;
+
+  const maximumAllowedAssignedArea =
+    targetAreaPerDispenser *
+    1.45;
+
+  if (
+    assignedAreaAudit
+      .percentile10AssignedArea <
+    minimumAllowedAssignedArea
+  ) {
+    assignedAreaFailures.push(
+      "Small assigned areas indicate clustering"
+    );
+  }
+
+  if (
+    assignedAreaAudit
+      .percentile90AssignedArea >
+    maximumAllowedAssignedArea
+  ) {
+    assignedAreaFailures.push(
+      "Large assigned areas indicate open coverage"
+    );
+  }
+
+  if (
+    assignedAreaAudit
+      .assignedAreaSpread >
+    2
+  ) {
+    assignedAreaFailures.push(
+      "Assigned-area spread too large"
+    );
+  }
+
+  if (
+    assignedAreaAudit
+      .assignedAreaVariation >
+    0.32
+  ) {
+    assignedAreaFailures.push(
+      "Assigned-area variation too high"
+    );
+  }
+
+  if (
+    assignedAreaAudit
+      .assignedAreaScore >
+    0.30
+  ) {
+    assignedAreaFailures.push(
+      "Overall assigned-area score too high"
+    );
+  }
+
   const rejectedPattern = {
     count,
     resultingRate,
     percentOffTarget,
+
+    rowInterval,
+    patternAInterval,
+    patternBInterval,
+    patternAStart,
+    patternBStart,
+
+    rejectionReasons,
+    spacingFailures,
+    bandingFailures,
+    assignedAreaFailures,
 
     passesSpacingAudit:
       coverageQuality
@@ -3604,17 +3890,15 @@ if (
       assignedAreaAudit
         .passesAssignedAreaAudit,
 
-    coverageScore:
-      coverageQuality
-        .coverageScore,
-
-    coverageUniformity:
-      coverageQuality
-        .coverageUniformity,
+    expectedSpacing,
 
     closestDispenserDistance:
       coverageQuality
         .closestDispenserDistance,
+
+    medianNeighborDistance:
+      coverageQuality
+        .neighborDistance50,
 
     percentile95:
       coverageQuality
@@ -3652,17 +3936,45 @@ if (
       assignedAreaAudit
         .assignedAreaVariation,
 
+    percentile10AssignedArea:
+      assignedAreaAudit
+        .percentile10AssignedArea,
+
+    percentile90AssignedArea:
+      assignedAreaAudit
+        .percentile90AssignedArea,
+
     bandingScore:
       bandingAudit
-        .bandingScore
+        .bandingScore,
+
+    alongRowVariation:
+      bandingAudit
+        .alongRowVariation,
+
+    acrossRowVariation:
+      bandingAudit
+        .acrossRowVariation,
+
+    coverageScore:
+      coverageQuality
+        .coverageScore
   };
+
+  rejectedPatterns.push(
+    rejectedPattern
+  );
 
   /*
     Keep the rejected candidate closest to the
     requested dispenser count.
+
+    When counts are equal, keep the candidate with
+    the lower coverage score.
   */
   if (
     !bestRejectedPattern ||
+
     Math.abs(
       rejectedPattern.count -
       targetDispensers
@@ -3670,6 +3982,21 @@ if (
     Math.abs(
       bestRejectedPattern.count -
       targetDispensers
+    ) ||
+
+    (
+      Math.abs(
+        rejectedPattern.count -
+        targetDispensers
+      ) ===
+      Math.abs(
+        bestRejectedPattern.count -
+        targetDispensers
+      ) &&
+
+      rejectedPattern.coverageScore <
+        bestRejectedPattern
+          .coverageScore
     )
   ) {
     bestRejectedPattern =
@@ -3879,7 +4206,153 @@ idealMatchScore,
       }
     }
   }
+  /*
+    Diagnostic output.
 
+    Put the candidates closest to the requested total
+    first, then the candidates with the best coverage
+    score.
+
+    Open the browser console after generating patterns
+    to inspect this table.
+  */
+  rejectedPatterns.sort(
+    (a, b) => {
+      const countDifferenceA =
+        Math.abs(
+          a.count -
+          targetDispensers
+        );
+
+      const countDifferenceB =
+        Math.abs(
+          b.count -
+          targetDispensers
+        );
+
+      if (
+        countDifferenceA !==
+        countDifferenceB
+      ) {
+        return (
+          countDifferenceA -
+          countDifferenceB
+        );
+      }
+
+      return (
+        a.coverageScore -
+        b.coverageScore
+      );
+    }
+  );
+
+  if (
+    !showClosest &&
+    rejectedPatterns.length
+  ) {
+    console.group(
+      "CT APP rejected-pattern audit"
+    );
+
+    console.log(
+      "Requested rate:",
+      input.targetRate
+    );
+
+    console.log(
+      "Requested total:",
+      targetDispensers
+    );
+
+    console.log(
+      "Expected spacing:",
+      expectedSpacing
+    );
+
+    console.table(
+      rejectedPatterns
+        .slice(0, 20)
+        .map(pattern => ({
+          total:
+            pattern.count,
+
+          rate:
+            pattern.resultingRate
+              .toFixed(2),
+
+          rowInterval:
+            pattern.rowInterval,
+
+          patternA:
+            `${pattern.patternAStart} every ${pattern.patternAInterval}`,
+
+          patternB:
+            `${pattern.patternBStart} every ${pattern.patternBInterval}`,
+
+          failedAudits:
+            pattern.rejectionReasons
+              .join(", "),
+
+          spacingFailures:
+            pattern.spacingFailures
+              .join(", "),
+
+          bandingFailures:
+            pattern.bandingFailures
+              .join(", "),
+
+          assignedAreaFailures:
+            pattern.assignedAreaFailures
+              .join(", "),
+
+          closestPair:
+            pattern
+              .closestDispenserDistance
+              .toFixed(1),
+
+          medianSpacing:
+            pattern
+              .medianNeighborDistance
+              .toFixed(1),
+
+          percentile95Gap:
+            pattern.percentile95
+              .toFixed(1),
+
+          worstGap:
+            pattern
+              .worstNearestDistance
+              .toFixed(1),
+
+          neighborSpread:
+            pattern
+              .neighborDistanceSpread
+              .toFixed(2),
+
+          densitySpread:
+            pattern
+              .localDensitySpread,
+
+          areaSpread:
+            pattern
+              .assignedAreaSpread
+              .toFixed(2),
+
+          areaVariation:
+            pattern
+              .assignedAreaVariation
+              .toFixed(2)
+        }))
+    );
+
+    console.log(
+      "Best rejected candidate:",
+      rejectedPatterns[0]
+    );
+
+    console.groupEnd();
+  }
   candidatePatterns.sort((a, b) => {
      /*
     When the user requests closest practical patterns:
@@ -4052,7 +4525,13 @@ return simplicityA - simplicityB;
   return {
     orchard,
     patterns: [],
-    bestRejectedPattern
+    bestRejectedPattern,
+
+    rejectedPatterns:
+      rejectedPatterns.slice(
+        0,
+        20
+      )
   };
 }
 
@@ -4276,11 +4755,19 @@ const higherPatterns =
     }
   );
 
-  return {
-  orchard,
-  patterns: selectedPatterns,
-  bestRejectedPattern
-};
+    return {
+    orchard,
+    patterns:
+      selectedPatterns,
+
+    bestRejectedPattern,
+
+    rejectedPatterns:
+      rejectedPatterns.slice(
+        0,
+        20
+      )
+  };
 }
 /*
 
