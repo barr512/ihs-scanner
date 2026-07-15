@@ -143,6 +143,7 @@ if (productSelect && rateInput) {
 }
 let currentInput = null;
 let currentPlans = [];
+let currentRejectedPattern = null;
 
 if (generateBtn) {
   generateBtn.addEventListener(
@@ -4870,8 +4871,16 @@ const engineResults =
     showClosest
   );
 
-  input.showingClosestPatterns =
-    showClosest;
+/*
+  Save the closest rejected candidate so its audit
+  failures can be shown directly on the results screen.
+*/
+currentRejectedPattern =
+  engineResults.bestRejectedPattern ||
+  null;
+
+input.showingClosestPatterns =
+  showClosest;
 
   input.targetAreaPerDispenser =
     43560 /
@@ -5075,7 +5084,131 @@ ${
     </div>
   `;
 }
+function renderRejectedPatternAudit(
+  rejectedPattern
+) {
+  if (!rejectedPattern) {
+    return "";
+  }
 
+  const failedAuditNames = [];
+
+  if (
+    !rejectedPattern
+      .passesSpacingAudit
+  ) {
+    failedAuditNames.push(
+      "Spacing audit"
+    );
+  }
+
+  if (
+    !rejectedPattern
+      .passesBandingAudit
+  ) {
+    failedAuditNames.push(
+      "Banding audit"
+    );
+  }
+
+  if (
+    !rejectedPattern
+      .passesAssignedAreaAudit
+  ) {
+    failedAuditNames.push(
+      "Assigned-area audit"
+    );
+  }
+
+  const detailedFailures = [
+    ...(
+      rejectedPattern
+        .spacingFailures ||
+      []
+    ),
+
+    ...(
+      rejectedPattern
+        .bandingFailures ||
+      []
+    ),
+
+    ...(
+      rejectedPattern
+        .assignedAreaFailures ||
+      []
+    )
+  ];
+
+  const auditNameText =
+    failedAuditNames.length
+      ? failedAuditNames.join(
+          ", "
+        )
+      : "Unknown audit";
+
+  const detailedFailureHtml =
+    detailedFailures.length
+      ? `
+        <ul class="instructions-list">
+          ${detailedFailures
+            .map(
+              failure =>
+                `<li>${failure}</li>`
+            )
+            .join("")}
+        </ul>
+      `
+      : `
+        <p class="muted">
+          The candidate failed an audit, but no
+          individual threshold was recorded.
+        </p>
+      `;
+
+  return `
+    <div class="audit-details">
+      <p>
+        <strong>
+          Development Audit
+        </strong>
+      </p>
+
+      <p class="muted">
+        Closest rejected candidate:
+        <strong>
+          ${rejectedPattern.count}
+        </strong>
+        dispensers
+        ${
+          Number.isFinite(
+            rejectedPattern
+              .resultingRate
+          )
+            ? `
+              at
+              <strong>
+                ${rejectedPattern
+                  .resultingRate
+                  .toFixed(1)}
+              </strong>
+              per acre
+            `
+            : ""
+        }.
+      </p>
+
+      <p class="muted">
+        Failed:
+        <strong>
+          ${auditNameText}
+        </strong>
+      </p>
+
+      ${detailedFailureHtml}
+    </div>
+  `;
+}
 function renderOptions(plans) {
   optionsEl.innerHTML = "";
 
