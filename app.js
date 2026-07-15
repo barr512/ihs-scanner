@@ -4266,9 +4266,12 @@ idealMatchScore,
     );
 
     console.log(
-      "Expected spacing:",
-      expectedSpacing
-    );
+  "Expected spacing:",
+  Math.sqrt(
+    SQFT_PER_ACRE /
+    input.targetRate
+  )
+);
 
     console.table(
       rejectedPatterns
