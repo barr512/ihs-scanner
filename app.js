@@ -3949,13 +3949,37 @@ if (
       bandingAudit
         .bandingScore,
 
-    alongRowVariation:
+        alongRowVariation:
       bandingAudit
         .alongRowVariation,
 
     acrossRowVariation:
       bandingAudit
         .acrossRowVariation,
+
+    alongRowMaximumRelativeCount:
+      bandingAudit
+        .alongRowMaximumRelativeCount,
+
+    acrossRowMaximumRelativeCount:
+      bandingAudit
+        .acrossRowMaximumRelativeCount,
+
+    alongRowMinimumRelativeCount:
+      bandingAudit
+        .alongRowMinimumRelativeCount,
+
+    acrossRowMinimumRelativeCount:
+      bandingAudit
+        .acrossRowMinimumRelativeCount,
+
+    alongRowMaximumAdjacentChange:
+      bandingAudit
+        .alongRowMaximumAdjacentChange,
+
+    acrossRowMaximumAdjacentChange:
+      bandingAudit
+        .acrossRowMaximumAdjacentChange,
 
     coverageScore:
       coverageQuality
@@ -5198,7 +5222,7 @@ function renderRejectedPatternAudit(
         }.
       </p>
 
-      <p class="muted">
+            <p class="muted">
         Failed:
         <strong>
           ${auditNameText}
@@ -5206,6 +5230,63 @@ function renderRejectedPatternAudit(
       </p>
 
       ${detailedFailureHtml}
+
+      ${
+        !rejectedPattern
+          .passesBandingAudit
+          ? `
+            <p>
+              <strong>
+                Banding Measurements
+              </strong>
+            </p>
+
+            <ul class="instructions-list">
+              <li>
+                Across-row variation:
+                ${rejectedPattern
+                  .acrossRowVariation
+                  .toFixed(3)}
+                — allowed maximum: 0.380
+              </li>
+
+              <li>
+                Along-row variation:
+                ${rejectedPattern
+                  .alongRowVariation
+                  .toFixed(3)}
+                — allowed maximum: 0.380
+              </li>
+
+              <li>
+                Across-row densest strip:
+                ${rejectedPattern
+                  .acrossRowMaximumRelativeCount
+                  .toFixed(3)}
+                × expected
+                — allowed maximum: 1.750
+              </li>
+
+              <li>
+                Across-row sparsest strip:
+                ${rejectedPattern
+                  .acrossRowMinimumRelativeCount
+                  .toFixed(3)}
+                × expected
+                — allowed minimum: 0.250
+              </li>
+
+              <li>
+                Across-row largest adjacent change:
+                ${rejectedPattern
+                  .acrossRowMaximumAdjacentChange
+                  .toFixed(3)}
+                — allowed maximum: 1.150
+              </li>
+            </ul>
+          `
+          : ""
+      }
     </div>
   `;
 }
