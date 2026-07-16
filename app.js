@@ -4639,14 +4639,6 @@ return simplicityA - simplicityB;
   };
 }
 
-   /*
-    Separate acceptable repeatable patterns by their
-    relationship to the expected purchased quantity.
-
-    This does not affect how patterns are generated.
-    The orchard geometry still determines the row
-    interval and total number of treated 
-    
   /*
   Group candidates by the whole-number deployment-rate
   class shown to the grower.
@@ -4718,8 +4710,236 @@ uniquePatterns.forEach(
   uniquePatterns is already ranked by the engine.
 
   Preserve that existing quality order within the
-  requested rate class
+  requested rate class.
+*/
+requestedClassPatterns.sort(
+  (a, b) =>
+    uniquePatterns.indexOf(a) -
+    uniquePatterns.indexOf(b)
+);
 
+/*
+  For lower-rate alternatives, first prefer the class
+  nearest the grower's requested class.
+
+  Within the same lower class, preserve the engine's
+  existing quality ranking.
+*/
+lowerClassPatterns.sort(
+  (a, b) => {
+    if (
+      a.rateClass !==
+      b.rateClass
+    ) {
+      return (
+        b.rateClass -
+        a.rateClass
+      );
+    }
+
+    return (
+      uniquePatterns.indexOf(a) -
+      uniquePatterns.indexOf(b)
+    );
+  }
+);
+
+/*
+  For higher-rate alternatives, first prefer the class
+  requiring the smallest increase.
+
+  Within the same higher class, preserve the engine's
+  existing quality ranking.
+*/
+higherClassPatterns.sort(
+  (a, b) => {
+    if (
+      a.rateClass !==
+      b.rateClass
+    ) {
+      return (
+        a.rateClass -
+        b.rateClass
+      );
+    }
+
+    return (
+      uniquePatterns.indexOf(a) -
+      uniquePatterns.indexOf(b)
+    );
+  }
+);
+
+const selectedPatterns = [];
+
+function addSelectedPattern(
+  pattern
+) {
+  if (
+    !pattern ||
+    selectedPatterns.includes(
+      pattern
+    )
+  ) {
+    return;
+  }
+
+  selectedPatterns.push(
+    pattern
+  );
+}
+
+/*
+  Pattern 1 must come from the requested rate class
+  whenever a valid requested-class pattern exists.
+
+  This protects the grower's expected inventory.
+*/
+addSelectedPattern(
+  requestedClassPatterns[0]
+);
+
+/*
+  Pattern 2 should also remain in the requested class
+  when another valid requested-class pattern exists.
+*/
+addSelectedPattern(
+  requestedClassPatterns[1]
+);
+
+/*
+  If fewer than two requested-class patterns exist,
+  fill the remaining early position with the best
+  lower-rate alternative.
+
+  The grower can use the remaining purchased
+  dispensers along the highest-pressure edge.
+*/
+if (
+  selectedPatterns.length < 2
+) {
+  addSelectedPattern(
+    lowerClassPatterns[0]
+  );
+}
+
+/*
+  Pattern 3 should normally be the best unused
+  lower-rate alternative.
+
+  A higher-rate pattern is used only when no unused
+  lower-rate alternative exists.
+*/
+const unusedLowerPattern =
+  lowerClassPatterns.find(
+    pattern =>
+      !selectedPatterns.includes(
+        pattern
+      )
+  );
+
+if (
+  unusedLowerPattern
+) {
+  addSelectedPattern(
+    unusedLowerPattern
+  );
+} else {
+  addSelectedPattern(
+    higherClassPatterns[0]
+  );
+}
+
+/*
+  If fewer than three options have been selected,
+  first use another requested-class pattern, then
+  another lower-class pattern, and finally a
+  higher-class pattern.
+*/
+requestedClassPatterns.forEach(
+  pattern => {
+    if (
+      selectedPatterns.length >= 3
+    ) {
+      return;
+    }
+
+    addSelectedPattern(
+      pattern
+    );
+  }
+);
+
+lowerClassPatterns.forEach(
+  pattern => {
+    if (
+      selectedPatterns.length >= 3
+    ) {
+      return;
+    }
+
+    addSelectedPattern(
+      pattern
+    );
+  }
+);
+
+higherClassPatterns.forEach(
+  pattern => {
+    if (
+      selectedPatterns.length >= 3
+    ) {
+      return;
+    }
+
+    addSelectedPattern(
+      pattern
+    );
+  }
+);
+
+/*
+  Store inventory guidance for the UI.
+
+  Lower-rate patterns leave dispensers available for
+  the highest-pressure edge.
+
+  Higher-rate patterns require additional inventory.
+*/
+selectedPatterns.forEach(
+  pattern => {
+    if (
+      pattern.rateClass ===
+      requestedRateClass
+    ) {
+      pattern.recommendationGroup =
+        "requested-rate-class";
+    } else if (
+      pattern.rateClass <
+      requestedRateClass
+    ) {
+      pattern.recommendationGroup =
+        "lower-rate-class";
+    } else {
+      pattern.recommendationGroup =
+        "higher-rate-class";
+    }
+
+    pattern.leftoverDispensers =
+      Math.max(
+        0,
+        targetDispensers -
+        pattern.count
+      );
+
+    pattern.additionalDispensers =
+      Math.max(
+        0,
+        pattern.count -
+        targetDispensers
+      );
+  }
+);
     return {
     orchard,
     patterns:
