@@ -4645,93 +4645,80 @@ return simplicityA - simplicityB;
 
     This does not affect how patterns are generated.
     The orchard geometry still determines the row
-    interval and total number of treated rows.
-  */
-/*
-  The complete candidate list has already been ranked
-  using ideal-layout match, coverage quality, rate
-  closeness, and crew simplicity.
+    interval and total number of treated 
+    
+  /*
+  Group candidates by the whole-number deployment-rate
+  class shown to the grower.
 
-  Preserve that ranking when selecting the three
-  grower-facing patterns instead of forcing exact,
-  lower, and higher rate groups into fixed positions.
+  Examples:
+
+  32 class:
+  31.5 through 32.499...
+
+  33 class:
+  32.5 through 33.499...
+
+  The decimal rate remains internal. The grower sees
+  only the rounded whole-number rate.
 */
-const selectedPatterns =
-  uniquePatterns.slice(
-    0,
-    3
-  );
-
-const requestedDisplayedRate =
+const requestedRateClass =
   Math.round(
     input.targetRate
   );
 
-selectedPatterns.forEach(
+const requestedClassPatterns =
+  [];
+
+const lowerClassPatterns =
+  [];
+
+const higherClassPatterns =
+  [];
+
+uniquePatterns.forEach(
   pattern => {
-    const displayedRate =
+    const patternRateClass =
       Math.round(
         pattern.resultingRate
       );
 
-    if (
-      displayedRate ===
-      requestedDisplayedRate
-    ) {
-      pattern.recommendationGroup =
-        "exact";
-
-      pattern.leftoverDispensers =
-        Math.max(
-          0,
-          targetDispensers -
-          pattern.count
-        );
-
-      pattern.additionalDispensers =
-        Math.max(
-          0,
-          pattern.count -
-          targetDispensers
-        );
-
-      return;
-    }
+    pattern.rateClass =
+      patternRateClass;
 
     if (
-      displayedRate <
-      requestedDisplayedRate
+      patternRateClass ===
+      requestedRateClass
     ) {
-      pattern.recommendationGroup =
-        "lower";
-
-      pattern.leftoverDispensers =
-        Math.max(
-          0,
-          targetDispensers -
-          pattern.count
-        );
-
-      pattern.additionalDispensers =
-        0;
-
-      return;
-    }
-
-    pattern.recommendationGroup =
-      "higher";
-
-    pattern.leftoverDispensers =
-      0;
-
-    pattern.additionalDispensers =
-      Math.max(
-        0,
-        pattern.count -
-        targetDispensers
+      requestedClassPatterns.push(
+        pattern
       );
+
+      return;
+    }
+
+    if (
+      patternRateClass <
+      requestedRateClass
+    ) {
+      lowerClassPatterns.push(
+        pattern
+      );
+
+      return;
+    }
+
+    higherClassPatterns.push(
+      pattern
+    );
   }
 );
+
+/*
+  uniquePatterns is already ranked by the engine.
+
+  Preserve that existing quality order within the
+  requested rate class
 
     return {
     orchard,
