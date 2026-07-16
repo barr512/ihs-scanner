@@ -3980,7 +3980,17 @@ const maximumAllowedAssignedArea =
     localDensitySpread:
       coverageQuality
         .localDensitySpread,
+localDensity10:
+  coverageQuality
+    .localDensity10,
 
+localDensity50:
+  coverageQuality
+    .localDensity50,
+
+localDensity90:
+  coverageQuality
+    .localDensity90,
     gapPenalty:
       coverageQuality
         .gapPenalty,
@@ -5367,7 +5377,7 @@ function renderRejectedPatternAudit(
         }.
       </p>
 
-            <p class="muted">
+                <p class="muted">
         Failed:
         <strong>
           ${auditNameText}
@@ -5375,6 +5385,41 @@ function renderRejectedPatternAudit(
       </p>
 
       ${detailedFailureHtml}
+
+      ${
+        !rejectedPattern.passesSpacingAudit
+          ? `
+            <p>
+              <strong>
+                Spacing Measurements
+              </strong>
+            </p>
+
+            <ul class="instructions-list">
+              <li>
+                Local density (10th percentile):
+                ${rejectedPattern.localDensity10}
+              </li>
+
+              <li>
+                Local density (median):
+                ${rejectedPattern.localDensity50}
+              </li>
+
+              <li>
+                Local density (90th percentile):
+                ${rejectedPattern.localDensity90}
+              </li>
+
+              <li>
+                Local-density spread:
+                ${rejectedPattern.localDensitySpread}
+                — allowed maximum: 2
+              </li>
+            </ul>
+          `
+          : ""
+      }
 
       ${
         !rejectedPattern
