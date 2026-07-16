@@ -3448,46 +3448,14 @@ if (
                 reverseTrees
               );
 /*
-  Check the complete A/B pattern across the entire row.
+  Do not reject an A/B pattern merely because positions
+  on different orchard rows approach the same tree number.
 
-  Different intervals can begin staggered but drift together
-  farther down the row. Reject patterns where A and B become
-  too closely aligned anywhere in the block.
+  A and B dispensers remain physically separated by the
+  orchard row spacing. The completed two-dimensional
+  layout is evaluated later by the spacing, coverage,
+  banding, and assigned-area audits.
 */
-const minimumInterval = Math.min(
-  patternAInterval,
-  patternBInterval
-);
-
-const minimumRequiredSeparation = Math.max(
-  2,
-  Math.floor(minimumInterval * 0.3)
-);
-
-let patternRemainsStaggered = true;
-
-for (const aTree of patternAPositions) {
-  let nearestBSeparation = Infinity;
-
-  for (const bTree of patternBPositions) {
-    nearestBSeparation = Math.min(
-      nearestBSeparation,
-      Math.abs(aTree - bTree)
-    );
-  }
-
-  if (
-    nearestBSeparation <
-    minimumRequiredSeparation
-  ) {
-    patternRemainsStaggered = false;
-    break;
-  }
-}
-
-if (!patternRemainsStaggered) {
-  continue;
-}
             const placements = [];
 
             treatedRows.forEach(
