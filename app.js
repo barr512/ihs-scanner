@@ -1647,25 +1647,42 @@ function buildRepeatingTreePattern(
 
 function getSimpleStartOptions(interval) {
   /*
-    Test every possible starting tree within the
-    repeating interval.
+    Short, high-density intervals retain every possible
+    start because each phase can materially affect the
+    stagger.
 
-    This applies to both the recommended product rate
-    and any grower-selected rate. The engine will later
-    rank the surviving layouts for coverage and crew
-    simplicity.
+    Wider intervals use representative phases. Testing
+    every tree in a large interval creates hundreds of
+    nearly equivalent A/B combinations and makes the
+    phone repeat the same whole-block audits.
   */
-  const options = [];
-
-  for (
-    let start = 1;
-    start <= interval;
-    start++
-  ) {
-    options.push(start);
+  if (interval <= 6) {
+    return Array.from(
+      { length: interval },
+      (_, index) => index + 1
+    );
   }
 
-  return options;
+  return Array.from(
+    new Set([
+      1,
+      Math.max(
+        1,
+        Math.round(interval * 0.25)
+      ),
+      Math.max(
+        1,
+        Math.round(interval * 0.50)
+      ),
+      Math.max(
+        1,
+        Math.round(interval * 0.75)
+      ),
+      interval
+    ])
+  ).sort(
+    (a, b) => a - b
+  );
 }
 function clampNumber(
   value,
@@ -3347,6 +3364,14 @@ function getBestPatterns(
   }
 
     const candidatePatterns = [];
+
+  /*
+    Prevent identical tree maps from reaching the
+    expensive coverage, banding, assigned-area, and
+    ideal-match audits more than once.
+  */
+  const evaluatedPlacementKeys =
+    new Set();
 /*
   Store one mathematical ideal layout for each
   whole-number deployment-rate class.
@@ -3704,6 +3729,32 @@ if (
 ) {
   continue;
 }
+
+/*
+  Different A/B settings can resolve to exactly the same
+  dispenser locations. Deduplicate that final map before
+  any whole-block audit is run.
+*/
+const placementKey =
+  placements
+    .map(
+      placement =>
+        `${placement.row}:${placement.tree}`
+    )
+    .sort()
+    .join("|");
+
+if (
+  evaluatedPlacementKeys.has(
+    placementKey
+  )
+) {
+  continue;
+}
+
+evaluatedPlacementKeys.add(
+  placementKey
+);
 
 /*
   Build the rate-specific ideal layout only after all
