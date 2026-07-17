@@ -5794,7 +5794,7 @@ function selectPlan(plan, input) {
 
       <div class="plan-action-grid">
         <button id="saveBlockPlanBtn" type="button">
-          Save to Block
+          Save Block in CT APP
         </button>
 
         <button id="printBlockPlanBtn" type="button" class="secondary-button">
@@ -5802,7 +5802,7 @@ function selectPlan(plan, input) {
         </button>
 
         <button id="viewSavedBlocksFromPlanBtn" type="button" class="secondary-button">
-          View Saved Blocks
+          View Blocks Saved in CT APP
         </button>
       </div>
 
@@ -6258,7 +6258,7 @@ function saveCurrentPlanToBlock() {
 
   if (status) {
     status.textContent =
-      `Saved to "${blockName}" on this device.`;
+      `Saved "${blockName}" inside CT APP on this device. No file was created.`;
   }
 
   renderSavedBlocks();
@@ -6561,7 +6561,7 @@ function exportSavedBlocks() {
 
   if (!blocks.length) {
     renderSavedBlocks(
-      "There are no saved blocks to export."
+      "There are no blocks saved inside CT APP to export."
     );
     return;
   }
@@ -6610,7 +6610,7 @@ function exportSavedBlocks() {
   );
 
   renderSavedBlocks(
-    `Exported ${blocks.length} saved block${blocks.length === 1 ? "" : "s"}.`
+    `Downloaded a backup file containing ${blocks.length} saved block${blocks.length === 1 ? "" : "s"}.`
   );
 }
 
