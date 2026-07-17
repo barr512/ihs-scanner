@@ -3636,19 +3636,6 @@ const effectiveRate =
     resultingRate
   );
 
-const {
-  evaluationInput,
-  evaluationIdealLayout
-} =
-  getEvaluationContext(
-    effectiveRate
-  );
-
-if (
-  !evaluationIdealLayout
-) {
-  continue;
-}
             if (
               input.selectedProduct &&
               resultingRate >
@@ -3705,6 +3692,37 @@ if (
             ) {
               continue;
             }
+
+/*
+  Closest practical patterns should remain genuinely
+  close to the grower's request. Do not run expensive
+  coverage audits on remote rate classes.
+*/
+if (
+  showClosest &&
+  percentOffTarget > 0.10
+) {
+  continue;
+}
+
+/*
+  Build the rate-specific ideal layout only after all
+  inexpensive count, inventory, product, and rate filters
+  have passed.
+*/
+const {
+  evaluationInput,
+  evaluationIdealLayout
+} =
+  getEvaluationContext(
+    effectiveRate
+  );
+
+if (
+  !evaluationIdealLayout
+) {
+  continue;
+}
 
 const coverageQuality =
   scoreCoverageQuality(
@@ -4395,6 +4413,9 @@ const actualAreaPerDispenser =
               resultingRate,
               percentOffTarget,
 
+              fullyOptimized:
+                passesOptimizedAudit,
+
               actualAreaPerDispenser,
               coverageDifferencePercent,
 
@@ -4850,9 +4871,23 @@ uniquePatterns.forEach(
   requested rate class.
 */
 requestedClassPatterns.sort(
-  (a, b) =>
-    uniquePatterns.indexOf(a) -
-    uniquePatterns.indexOf(b)
+  (a, b) => {
+    if (
+      a.fullyOptimized !==
+      b.fullyOptimized
+    ) {
+      return Number(
+        b.fullyOptimized
+      ) - Number(
+        a.fullyOptimized
+      );
+    }
+
+    return (
+      uniquePatterns.indexOf(a) -
+      uniquePatterns.indexOf(b)
+    );
+  }
 );
 
 /*
@@ -4871,6 +4906,17 @@ lowerClassPatterns.sort(
       return (
         b.rateClass -
         a.rateClass
+      );
+    }
+
+    if (
+      a.fullyOptimized !==
+      b.fullyOptimized
+    ) {
+      return Number(
+        b.fullyOptimized
+      ) - Number(
+        a.fullyOptimized
       );
     }
 
@@ -4897,6 +4943,17 @@ higherClassPatterns.sort(
       return (
         a.rateClass -
         b.rateClass
+      );
+    }
+
+    if (
+      a.fullyOptimized !==
+      b.fullyOptimized
+    ) {
+      return Number(
+        b.fullyOptimized
+      ) - Number(
+        a.fullyOptimized
       );
     }
 
@@ -5156,44 +5213,26 @@ if (!idealLayout) {
   return;
 }
 
+/*
+  Run one nearby-rate search. Each candidate records
+  whether it passed the strict optimized audit or only
+  the broader practical audit. This avoids repeating
+  the entire engine when strict results are unavailable.
+*/
 let engineResults =
   getBestPatterns(
     input,
     idealLayout,
-    showClosest
+    true
   );
 
-let usedAutomaticPracticalFallback =
-  false;
+showClosest = true;
 
-/*
-  When no fully optimized pattern survives, automatically
-  check the practical audit. Higher-rate candidates have
-  already been excluded.
-*/
-if (
-  !showClosest &&
-  !engineResults.patterns.length
-) {
-  const practicalResults =
-    getBestPatterns(
-      input,
-      idealLayout,
-      true
-    );
-
-  if (
-    practicalResults.patterns.length
-  ) {
-    engineResults =
-      practicalResults;
-
-    showClosest = true;
-
-    usedAutomaticPracticalFallback =
-      true;
-  }
-}
+const usedAutomaticPracticalFallback =
+  engineResults.patterns.some(
+    pattern =>
+      !pattern.fullyOptimized
+  );
 
 /*
   Save the closest rejected candidate so its audit
