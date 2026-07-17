@@ -18,6 +18,21 @@ const idealDemoBtn =
   document.getElementById(
     "idealDemoBtn"
   );
+
+const planningOverlay =
+  document.getElementById(
+    "planningOverlay"
+  );
+
+const planningOverlayTitle =
+  document.getElementById(
+    "planningOverlayTitle"
+  );
+
+const planningOverlayMessage =
+  document.getElementById(
+    "planningOverlayMessage"
+  );
 const products = {
   "cmda-combo-meso-a": {
     name: "CIDETRAK CMDA COMBO MESO-A",
@@ -169,7 +184,12 @@ if (generateBtn) {
     "click",
     event => {
       event.preventDefault();
-      generatePlans();
+
+      runPlanningTask(
+        () => generatePlans(),
+        "Building Deployment Patterns",
+        "Checking rate, spacing, coverage, and practical field patterns…"
+      );
     }
   );
 }
@@ -179,7 +199,12 @@ if (idealDemoBtn) {
     "click",
     event => {
       event.preventDefault();
-      showIdealLayoutDemo();
+
+      runPlanningTask(
+        () => showIdealLayoutDemo(),
+        "Building Ideal Layout",
+        "Calculating mathematical spacing and snapping positions to orchard trees…"
+      );
     }
   );
 }
@@ -190,6 +215,78 @@ if (backBtn) {
 if (topBackBtn) {
   topBackBtn.addEventListener("click", showSetupScreen);
 }
+function showPlanningOverlay(
+  title,
+  message
+) {
+  if (!planningOverlay) return;
+
+  planningOverlayTitle.textContent =
+    title;
+
+  planningOverlayMessage.textContent =
+    message;
+
+  planningOverlay.hidden = false;
+  planningOverlay.setAttribute(
+    "aria-hidden",
+    "false"
+  );
+
+  document.body.classList.add(
+    "planning-active"
+  );
+}
+
+function hidePlanningOverlay() {
+  if (!planningOverlay) return;
+
+  planningOverlay.hidden = true;
+  planningOverlay.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+  document.body.classList.remove(
+    "planning-active"
+  );
+}
+
+function runPlanningTask(
+  task,
+  title,
+  message
+) {
+  showPlanningOverlay(
+    title,
+    message
+  );
+
+  /*
+    Give the browser time to paint the progress
+    message before the calculation occupies the
+    main thread.
+  */
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      try {
+        task();
+      } catch (error) {
+        console.error(
+          "Planning calculation failed:",
+          error
+        );
+
+        alert(
+          "The app could not finish this calculation. Please check the block details and try again."
+        );
+      } finally {
+        hidePlanningOverlay();
+      }
+    }, 30);
+  });
+}
+
 function getInputs() {
   const selectedProduct =
     products[productSelect.value] || null;
@@ -5547,7 +5644,11 @@ function renderOptions(plans) {
       closestPatternsBtn.addEventListener(
         "click",
         () => {
-          generatePlans(true);
+          runPlanningTask(
+            () => generatePlans(true),
+            "Finding Closest Practical Patterns",
+            "Reviewing nearby rates and checking spacing, coverage, and field practicality…"
+          );
         }
       );
     }
