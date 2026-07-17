@@ -3166,37 +3166,18 @@ function getBestPatterns(
   showClosest = false
 ) {
   const SQFT_PER_ACRE = 43560;
-
   const blockArea =
     input.acres * SQFT_PER_ACRE;
-
   const totalRowFeet =
     blockArea / input.rowSpacing;
-
   const rowLength =
     totalRowFeet / input.rows;
-
   const treesPerRow = Math.max(
     1,
-    Math.round(rowLength / input.treeSpacing)
+    Math.round(
+      rowLength / input.treeSpacing
+    )
   );
-
-  const labelTargetDispensers = Math.round(
-    input.acres * input.targetRate
-  );
-
-  const inventoryIsLimited =
-    input.availableDispensers &&
-    input.availableDispensers <
-      labelTargetDispensers;
-
-  const targetDispensers =
-    inventoryIsLimited
-      ? input.availableDispensers
-      : labelTargetDispensers;
-
-  const targetAreaPerDispenser =
-    SQFT_PER_ACRE / input.targetRate;
 
   const orchard = {
     rows: input.rows,
@@ -3205,7 +3186,11 @@ function getBestPatterns(
     trees: []
   };
 
-  for (let row = 1; row <= input.rows; row++) {
+  for (
+    let row = 1;
+    row <= input.rows;
+    row++
+  ) {
     for (
       let tree = 1;
       tree <= treesPerRow;
@@ -3218,101 +3203,61 @@ function getBestPatterns(
     }
   }
 
-    const candidatePatterns = [];
-/*
-  Store one mathematical ideal layout for each
-  whole-number deployment-rate class.
+  const totalTreeCapacity =
+    input.rows * treesPerRow;
 
-  This ensures that a 34-per-acre candidate is always
-  evaluated against the same 34-per-acre ideal layout,
-  regardless of the rate originally entered.
-*/
-const idealLayoutsByRate =
-  new Map();
+  const targetDispensers =
+    input.inventoryIsLimited
+      ? input.availableDispensers
+      : Math.round(
+          input.acres *
+          input.targetRate
+        );
 
-function getEvaluationContext(
-  effectiveRate
-) {
   if (
-    idealLayoutsByRate.has(
-      effectiveRate
-    )
+    targetDispensers >
+    totalTreeCapacity
   ) {
-    return idealLayoutsByRate.get(
-      effectiveRate
-    );
+    return {
+      orchard,
+      patterns: [],
+      bestRejectedPattern: null,
+      rejectedPatterns: [],
+      capacityExceeded: true,
+      totalTreeCapacity,
+      maximumRate:
+        totalTreeCapacity /
+        input.acres
+    };
   }
 
-  const evaluationInput = {
-    ...input,
-    targetRate:
-      effectiveRate
-  };
-
-  const evaluationIdealLayout =
-    buildIdealLayout(
-      evaluationInput
-    );
-
-  const context = {
-    evaluationInput,
-    evaluationIdealLayout
-  };
-
-  idealLayoutsByRate.set(
-    effectiveRate,
-    context
-  );
-
-  return context;
-}
-  /*
-    Diagnostic storage only.
-
-    This records the strongest rejected candidates so
-    we can see exactly which audit prevented them from
-    becoming grower-facing patterns.
-  */
-  const rejectedPatterns = [];
-
-  let bestRejectedPattern = null;
-
-  for (
-    let rowInterval = 1;
-    rowInterval <= Math.min(10, input.rows);
-    rowInterval++
+  function getTreatedRows(
+    rowInterval
   ) {
     const rowsRunNorthSouth =
-      input.rowDirection === "north-south";
+      input.rowDirection ===
+      "north-south";
 
     let rowStart = 1;
     let rowEnd = input.rows;
     let rowStep = 1;
-    let reverseTrees = false;
 
-    if (rowsRunNorthSouth) {
-      if (input.pressureEdge === "east") {
-        rowStart = input.rows;
-        rowEnd = 1;
-        rowStep = -1;
-      }
-
-      if (input.pressureEdge === "south") {
-        reverseTrees = true;
-      }
-    } else {
-      if (input.pressureEdge === "south") {
-        rowStart = input.rows;
-        rowEnd = 1;
-        rowStep = -1;
-      }
-
-      if (input.pressureEdge === "east") {
-        reverseTrees = true;
-      }
+    if (
+      (
+        rowsRunNorthSouth &&
+        input.pressureEdge === "east"
+      ) ||
+      (
+        !rowsRunNorthSouth &&
+        input.pressureEdge === "south"
+      )
+    ) {
+      rowStart = input.rows;
+      rowEnd = 1;
+      rowStep = -1;
     }
 
-    const treatedRows = [];
+    const rows = [];
 
     for (
       let row = rowStart;
@@ -3321,1645 +3266,825 @@ function getEvaluationContext(
         : row >= rowEnd;
       row += rowStep
     ) {
-      const distanceFromStartingEdge =
-        Math.abs(row - rowStart);
-
       if (
-        distanceFromStartingEdge %
+        Math.abs(
+          row - rowStart
+        ) %
           rowInterval ===
         0
       ) {
-        treatedRows.push(row);
+        rows.push(row);
       }
     }
 
-    if (!treatedRows.length) {
-      continue;
+    return rows;
+  }
+
+  function shouldReverseTrees() {
+    if (
+      input.rowDirection ===
+      "north-south"
+    ) {
+      return (
+        input.pressureEdge ===
+        "south"
+      );
     }
 
-    const averageDispensersPerTreatedRow =
-      targetDispensers /
-      treatedRows.length;
-
-    const estimatedTreeInterval = Math.max(
-      1,
-      Math.round(
-        treesPerRow /
-          averageDispensersPerTreatedRow
-      )
+    return (
+      input.pressureEdge ===
+      "east"
     );
+  }
+
+  function buildEvenPositions(
+    count,
+    phase,
+    reverseTrees
+  ) {
+    if (
+      count <= 0 ||
+      count > treesPerRow
+    ) {
+      return [];
+    }
+
+    const positions = [];
+
+    for (
+      let index = 0;
+      index < count;
+      index++
+    ) {
+      const position = Math.min(
+        treesPerRow,
+        1 +
+          Math.floor(
+            (
+              index + phase
+            ) *
+              treesPerRow /
+              count
+          )
+      );
+
+      if (
+        positions[
+          positions.length - 1
+        ] !== position
+      ) {
+        positions.push(position);
+      }
+    }
+
+    const oriented =
+      reverseTrees
+        ? positions
+            .map(
+              tree =>
+                treesPerRow -
+                tree +
+                1
+            )
+            .sort(
+              (a, b) => a - b
+            )
+        : positions;
+
+    return oriented;
+  }
+
+  function getGapSequence(
+    positions
+  ) {
+    if (
+      positions.length < 2
+    ) {
+      return [];
+    }
+
+    const gaps = [];
+
+    for (
+      let index = 1;
+      index < positions.length;
+      index++
+    ) {
+      gaps.push(
+        positions[index] -
+        positions[index - 1]
+      );
+    }
 
     /*
-      Only test intervals near the expected spacing.
-
-      Pattern A and Pattern B may use different fixed
-      intervals, but both must remain simple and repeatable.
+      Keep the shortest repeating prefix when one
+      exists. Otherwise retain a practical sample
+      for the grower-facing description.
     */
-
-    const intervalCandidates = [];
-
     for (
-      let interval =
-        estimatedTreeInterval - 4;
-      interval <=
-        estimatedTreeInterval + 4;
-      interval++
+      let length = 1;
+      length <=
+        Math.min(12, gaps.length);
+      length++
     ) {
-      if (
-        interval >= 1 &&
-        interval <= treesPerRow
-      ) {
-        intervalCandidates.push(interval);
+      const repeats =
+        gaps.every(
+          (gap, index) =>
+            gap ===
+            gaps[index % length]
+        );
+
+      if (repeats) {
+        return gaps.slice(
+          0,
+          length
+        );
       }
     }
 
-    for (
-      const patternAInterval
-      of intervalCandidates
-    ) {
-      for (
-        const patternBInterval
-        of intervalCandidates
-      ) {
-        const patternAStartOptions =
-  getSimpleStartOptions(
-    patternAInterval
-  );
-
-const patternBStartOptions =
-  getSimpleStartOptions(
-    patternBInterval
-  );
-
-        for (
-          const patternAStart
-          of patternAStartOptions
-        ) {
-         for (
-  const patternBStart
-  of patternBStartOptions
-) {
-  /*
-    Every displayed pattern must be staggered.
-    Pattern A and Pattern B cannot begin on the same tree.
-  */
- /*
-  Require a meaningful stagger.
-
-  Different starting trees are not enough.
-  Pattern A and Pattern B must begin far enough
-  apart to avoid nearly straight alignment.
-*/
-const smallerInterval = Math.min(
-  patternAInterval,
-  patternBInterval
-);
-
-const startSeparation = Math.abs(
-  patternAStart -
-  patternBStart
-);
-
-const minimumStaggerSeparation = Math.max(
-  2,
-  Math.floor(smallerInterval * 0.3)
-);
-
-if (
-  startSeparation <
-  minimumStaggerSeparation
-) {
-  continue;
-}
-
-  const patternAPositions =
-              buildRepeatingTreePattern(
-                treesPerRow,
-                patternAInterval,
-                patternAStart,
-                reverseTrees
-              );
-
-            const patternBPositions =
-              buildRepeatingTreePattern(
-                treesPerRow,
-                patternBInterval,
-                patternBStart,
-                reverseTrees
-              );
-/*
-  Do not reject an A/B pattern merely because positions
-  on different orchard rows approach the same tree number.
-
-  A and B dispensers remain physically separated by the
-  orchard row spacing. The completed two-dimensional
-  layout is evaluated later by the spacing, coverage,
-  banding, and assigned-area audits.
-*/
-            const placements = [];
-
-            treatedRows.forEach(
-              (row, treatedRowIndex) => {
-                const rowPositions =
-                  treatedRowIndex % 2 === 0
-                    ? patternAPositions
-                    : patternBPositions;
-
-                rowPositions.forEach(tree => {
-                  placements.push({
-                    row,
-                    tree
-                  });
-                });
-              }
-            );
-;
-            const count =
-              placements.length;
-
-            if (!count) {
-              continue;
-            }
-
-            if (
-              inventoryIsLimited &&
-              count > targetDispensers
-            ) {
-              continue;
-            }
-
-            const resultingRate =
-              count / input.acres;
-/*
-  Grower-facing deployment rates are whole numbers.
-
-  Examples:
-  32.5 through 33.4 belong to the 33-per-acre class.
-  33.5 through 34.4 belong to the 34-per-acre class.
-*/
-const effectiveRate =
-  Math.round(
-    resultingRate
-  );
-
-const {
-  evaluationInput,
-  evaluationIdealLayout
-} =
-  getEvaluationContext(
-    effectiveRate
-  );
-
-if (
-  !evaluationIdealLayout
-) {
-  continue;
-}
-            if (
-              input.selectedProduct &&
-              resultingRate >
-                input.selectedProduct.max
-            ) {
-              continue;
-            }
-
-            const rateDifference =
-              Math.abs(
-                count -
-                  targetDispensers
-              );
-
-            const percentOffTarget =
-              Math.abs(
-                resultingRate -
-                  input.targetRate
-              ) /
-              input.targetRate;
-
-           /*
-  Normal optimization stays within 3% of the requested rate.
-
-  The 3% limit is relaxed only after the user chooses
-  "View Closest Practical Patterns."
-*/
-/*
-  A grower-selected product rate must be treated as
-  the actual deployment target.
-
-  Permit no more than one dispenser of unavoidable
-  rounding difference during the normal search.
-*/
-/*
-  Normal search allows candidates within three percent
-  of the entered rate, whether the rate came from the
-  product recommendation or was entered by the grower.
-
-  Candidate grouping later uses the rounded displayed
-  rate, so a calculated rate of 33.5 is treated as 34.
-*/
-if (
-  !inventoryIsLimited &&
-  !showClosest &&
-  percentOffTarget > 0.03
-) {
-  continue;
-}
-            if (
-              inventoryIsLimited &&
-              count <
-                targetDispensers * 0.75
-            ) {
-              continue;
-            }
-
-const coverageQuality =
-  scoreCoverageQuality(
-    placements,
-    orchard,
-    evaluationInput
-  );
-
-const bandingAudit =
-  auditWholeBlockBanding(
-    placements,
-    orchard,
-    evaluationInput
-  );
-
-const assignedAreaAudit =
-  auditAssignedCoverageArea(
-    placements,
-    orchard,
-    evaluationInput
-  );
-
-const expectedSpacing =
-  Math.sqrt(
-    SQFT_PER_ACRE /
-    effectiveRate
-  );
-
-/*
-  Strict audit for fully optimized patterns.
-*/
-const passesOptimizedAudit =
-  coverageQuality.passesSpacingAudit &&
-  bandingAudit.passesBandingAudit &&
-  assignedAreaAudit.passesAssignedAreaAudit;
-
-/*
-  Broader audit for "Closest Practical Patterns."
-
-  These patterns may be somewhat less uniform than a
-  fully optimized layout, but visibly severe clusters,
-  open bands and large gaps are still rejected.
-*/
-const passesPracticalAudit =
-  coverageQuality.closestDispenserDistance >=
-    expectedSpacing * 0.35 &&
-
-  coverageQuality.percentile95 <=
-    expectedSpacing * 0.95 &&
-
-  coverageQuality.worstNearestDistance <=
-    expectedSpacing * 1.20 &&
-
-  coverageQuality.neighborDistanceSpread <=
-    1.80 &&
-
-  coverageQuality.localDensitySpread <=
-    4 &&
-
-  coverageQuality.clusterPenalty <=
-    0.16 &&
-
-  coverageQuality.gapPenalty <=
-    0.16 &&
-
-  bandingAudit.alongRowVariation <=
-    0.52 &&
-
-  bandingAudit.acrossRowVariation <=
-    0.52 &&
-
-  bandingAudit.alongRowMaximumAdjacentChange <=
-    1.50 &&
-
-  bandingAudit.acrossRowMaximumAdjacentChange <=
-    1.50;
-
-/*
-  Normal search requires a fully optimized pattern.
-
-  The closest-pattern search uses the broader practical
-  audit, but does not permit completely unrestricted
-  layouts.
-*/
-if (
-  !showClosest &&
-  !passesOptimizedAudit
-) {
-  const rejectionReasons = [];
-
-  if (
-    !coverageQuality
-      .passesSpacingAudit
-  ) {
-    rejectionReasons.push(
-      "Spacing audit"
-    );
+    return gaps.slice(0, 12);
   }
 
-  if (
-    !bandingAudit
-      .passesBandingAudit
-  ) {
-    rejectionReasons.push(
-      "Banding audit"
-    );
-  }
-
-  if (
-    !assignedAreaAudit
-      .passesAssignedAreaAudit
-  ) {
-    rejectionReasons.push(
-      "Assigned-area audit"
-    );
-  }
-
-  /*
-    Record the individual spacing-audit failures.
-
-    These explain why passesSpacingAudit was false.
-  */
-  const spacingFailures = [];
-
-  if (
-    coverageQuality
-      .closestDispenserDistance <
-    expectedSpacing * 0.45
-  ) {
-    spacingFailures.push(
-      "Closest dispenser pair too close"
-    );
-  }
-
-  if (
-    coverageQuality
-      .neighborDistance50 <
-    expectedSpacing * 0.60
-  ) {
-    spacingFailures.push(
-      "Median dispenser spacing too close"
-    );
-  }
-
-  if (
-    coverageQuality
-      .neighborDistanceSpread >
-    1.45
-  ) {
-    spacingFailures.push(
-      "Neighbor-distance spread too large"
-    );
-  }
-
-  if (
-    coverageQuality
-      .localDensitySpread >
-    2
-  ) {
-    spacingFailures.push(
-      "Local-density spread too large"
-    );
-  }
-
-  if (
-    coverageQuality
-      .percentile95 >
-    expectedSpacing * 0.80
-  ) {
-    spacingFailures.push(
-      "95th-percentile coverage gap too large"
-    );
-  }
-
-  if (
-    coverageQuality
-      .worstNearestDistance >
-    expectedSpacing
-  ) {
-    spacingFailures.push(
-      "Worst coverage gap too large"
-    );
-  }
-
-  if (
-    coverageQuality
-      .clusterPenalty >
-    0.08
-  ) {
-    spacingFailures.push(
-      "Cluster penalty too high"
-    );
-  }
-
-  if (
-    coverageQuality
-      .gapPenalty >
-    0.08
-  ) {
-    spacingFailures.push(
-      "Gap penalty too high"
-    );
-  }
-
-  /*
-    Record the individual banding-audit failures.
-  */
-  const bandingFailures = [];
-
-  if (
-    bandingAudit
-      .alongRowVariation >
-    0.38
-  ) {
-    bandingFailures.push(
-      "Along-row variation too high"
-    );
-  }
-
-  if (
-    bandingAudit
-      .acrossRowVariation >
-    0.38
-  ) {
-    bandingFailures.push(
-      "Across-row variation too high"
-    );
-  }
-
-  if (
-    bandingAudit
-      .alongRowMaximumRelativeCount >
-    1.75
-  ) {
-    bandingFailures.push(
-      "Along-row dense band too large"
-    );
-  }
-
-  if (
-    bandingAudit
-      .acrossRowMaximumRelativeCount >
-    1.75
-  ) {
-    bandingFailures.push(
-      "Across-row dense band too large"
-    );
-  }
-
-  if (
-    bandingAudit
-      .alongRowMinimumRelativeCount <
-    0.25
-  ) {
-    bandingFailures.push(
-      "Along-row open band too large"
-    );
-  }
-
-  if (
-    bandingAudit
-      .acrossRowMinimumRelativeCount <
-    0.25
-  ) {
-    bandingFailures.push(
-      "Across-row open band too large"
-    );
-  }
-
-  if (
-    bandingAudit
-      .alongRowMaximumAdjacentChange >
-    1.15
-  ) {
-    bandingFailures.push(
-      "Along-row adjacent band change too large"
-    );
-  }
-
-  if (
-    bandingAudit
-      .acrossRowMaximumAdjacentChange >
-    1.15
-  ) {
-    bandingFailures.push(
-      "Across-row adjacent band change too large"
-    );
-  }
-
-  /*
-    Record the individual assigned-area failures.
-  */
-  const assignedAreaFailures = [];
-
- const evaluationTargetAreaPerDispenser =
-  SQFT_PER_ACRE /
-  effectiveRate;
-
-const minimumAllowedAssignedArea =
-  evaluationTargetAreaPerDispenser *
-  0.55;
-
-const maximumAllowedAssignedArea =
-  evaluationTargetAreaPerDispenser *
-  1.45;
-
-  if (
-    assignedAreaAudit
-      .percentile10AssignedArea <
-    minimumAllowedAssignedArea
-  ) {
-    assignedAreaFailures.push(
-      "Small assigned areas indicate clustering"
-    );
-  }
-
-  if (
-    assignedAreaAudit
-      .percentile90AssignedArea >
-    maximumAllowedAssignedArea
-  ) {
-    assignedAreaFailures.push(
-      "Large assigned areas indicate open coverage"
-    );
-  }
-
-  if (
-    assignedAreaAudit
-      .assignedAreaSpread >
-    2
-  ) {
-    assignedAreaFailures.push(
-      "Assigned-area spread too large"
-    );
-  }
-
-  if (
-    assignedAreaAudit
-      .assignedAreaVariation >
-    0.32
-  ) {
-    assignedAreaFailures.push(
-      "Assigned-area variation too high"
-    );
-  }
-
-  if (
-    assignedAreaAudit
-      .assignedAreaScore >
-    0.30
-  ) {
-    assignedAreaFailures.push(
-      "Overall assigned-area score too high"
-    );
-  }
-
-  const rejectedPattern = {
-    count,
-    resultingRate,
-    percentOffTarget,
-
+  function constructPattern(
+    rateClass,
     rowInterval,
-    patternAInterval,
-    patternBInterval,
-    patternAStart,
-    patternBStart,
-
-    rejectionReasons,
-    spacingFailures,
-    bandingFailures,
-    assignedAreaFailures,
-
-    passesSpacingAudit:
-      coverageQuality
-        .passesSpacingAudit,
-
-    passesBandingAudit:
-      bandingAudit
-        .passesBandingAudit,
-
-    passesAssignedAreaAudit:
-      assignedAreaAudit
-        .passesAssignedAreaAudit,
-
-    expectedSpacing,
-
-    closestDispenserDistance:
-      coverageQuality
-        .closestDispenserDistance,
-
-    medianNeighborDistance:
-      coverageQuality
-        .neighborDistance50,
-
-    percentile95:
-      coverageQuality
-        .percentile95,
-
-    worstNearestDistance:
-      coverageQuality
-        .worstNearestDistance,
-
-    neighborDistanceSpread:
-      coverageQuality
-        .neighborDistanceSpread,
-
-    localDensitySpread:
-      coverageQuality
-        .localDensitySpread,
-localDensity10:
-  coverageQuality
-    .localDensity10,
-
-localDensity50:
-  coverageQuality
-    .localDensity50,
-
-localDensity90:
-  coverageQuality
-    .localDensity90,
-    gapPenalty:
-      coverageQuality
-        .gapPenalty,
-
-    clusterPenalty:
-      coverageQuality
-        .clusterPenalty,
-
-    assignedAreaScore:
-      assignedAreaAudit
-        .assignedAreaScore,
-
-    assignedAreaSpread:
-      assignedAreaAudit
-        .assignedAreaSpread,
-
-    assignedAreaVariation:
-      assignedAreaAudit
-        .assignedAreaVariation,
-
-    percentile10AssignedArea:
-      assignedAreaAudit
-        .percentile10AssignedArea,
-
-    percentile90AssignedArea:
-      assignedAreaAudit
-        .percentile90AssignedArea,
-
-    bandingScore:
-      bandingAudit
-        .bandingScore,
-
-        alongRowVariation:
-      bandingAudit
-        .alongRowVariation,
-
-    acrossRowVariation:
-      bandingAudit
-        .acrossRowVariation,
-
-    alongRowMaximumRelativeCount:
-      bandingAudit
-        .alongRowMaximumRelativeCount,
-
-    acrossRowMaximumRelativeCount:
-      bandingAudit
-        .acrossRowMaximumRelativeCount,
-
-    alongRowMinimumRelativeCount:
-      bandingAudit
-        .alongRowMinimumRelativeCount,
-
-    acrossRowMinimumRelativeCount:
-      bandingAudit
-        .acrossRowMinimumRelativeCount,
-
-    alongRowMaximumAdjacentChange:
-      bandingAudit
-        .alongRowMaximumAdjacentChange,
-
-    acrossRowMaximumAdjacentChange:
-      bandingAudit
-        .acrossRowMaximumAdjacentChange,
-
-    coverageScore:
-      coverageQuality
-        .coverageScore
-  };
-
-  rejectedPatterns.push(
-    rejectedPattern
-  );
-
-  /*
-    Keep the rejected candidate closest to the
-    requested dispenser count.
-
-    When counts are equal, keep the candidate with
-    the lower coverage score.
-  */
-  if (
-    !bestRejectedPattern ||
-
-    Math.abs(
-      rejectedPattern.count -
-      targetDispensers
-    ) <
-    Math.abs(
-      bestRejectedPattern.count -
-      targetDispensers
-    ) ||
-
-    (
-      Math.abs(
-        rejectedPattern.count -
-        targetDispensers
-      ) ===
-      Math.abs(
-        bestRejectedPattern.count -
-        targetDispensers
-      ) &&
-
-      rejectedPattern.coverageScore <
-        bestRejectedPattern
-          .coverageScore
-    )
+    phaseShift
   ) {
-    bestRejectedPattern =
-      rejectedPattern;
-  }
-
-  continue;
-}
-
-if (
-  showClosest &&
-  !passesPracticalAudit
-) {
-  continue;
-}
-/*
-  Compare this repeatable crew pattern with the
-  ideal mathematical dispenser locations.
-
-  Lower scores mean the repeatable pattern more
-  closely follows the ideal layout.
-*/
-let totalIdealMatchDistance = 0;
-
-evaluationIdealLayout.placements.forEach(
-  idealPlacement => {
-    let nearestCandidateDistance =
-      Infinity;
-
-    placements.forEach(
-      candidatePlacement => {
-        const distance =
-          physicalPlacementDistance(
-            idealPlacement,
-            candidatePlacement,
-            input
+    const desiredCount =
+      input.inventoryIsLimited
+        ? targetDispensers
+        : Math.round(
+            rateClass *
+            input.acres
           );
 
-        nearestCandidateDistance =
-          Math.min(
-            nearestCandidateDistance,
-            distance
+    const treatedRows =
+      getTreatedRows(
+        rowInterval
+      );
+
+    if (!treatedRows.length) {
+      return null;
+    }
+
+    const treatedCapacity =
+      treatedRows.length *
+      treesPerRow;
+
+    if (
+      desiredCount >
+      treatedCapacity
+    ) {
+      return null;
+    }
+
+    const basePerRow =
+      Math.floor(
+        desiredCount /
+        treatedRows.length
+      );
+
+    const remainder =
+      desiredCount %
+      treatedRows.length;
+
+    const reverseTrees =
+      shouldReverseTrees();
+
+    const placements = [];
+    const rowCounts = [];
+    const rowPatterns = [];
+
+    treatedRows.forEach(
+      (row, rowIndex) => {
+        const extrasBefore =
+          Math.floor(
+            rowIndex *
+            remainder /
+            treatedRows.length
           );
-      }
-    );
 
-    totalIdealMatchDistance +=
-      nearestCandidateDistance;
-  }
-);
-
-const averageIdealMatchDistance =
-  evaluationIdealLayout.placements.length
-    ? totalIdealMatchDistance /
-      evaluationIdealLayout.placements.length
-    : Infinity;
-
-/*
-  Also check in the opposite direction.
-
-  This prevents a candidate from appearing to match
-  the ideal layout merely because it covers each ideal
-  point while placing additional dispensers elsewhere.
-*/
-let totalCandidateToIdealDistance = 0;
-
-placements.forEach(
-  candidatePlacement => {
-    let nearestIdealDistance =
-      Infinity;
-
-    evaluationIdealLayout.placements.forEach(
-      idealPlacement => {
-        const distance =
-          physicalPlacementDistance(
-            candidatePlacement,
-            idealPlacement,
-            input
+        const extrasAfter =
+          Math.floor(
+            (
+              rowIndex + 1
+            ) *
+            remainder /
+            treatedRows.length
           );
 
-        nearestIdealDistance =
-          Math.min(
-            nearestIdealDistance,
-            distance
+        const count =
+          basePerRow +
+          (
+            extrasAfter >
+            extrasBefore
+              ? 1
+              : 0
           );
-      }
-    );
 
-    totalCandidateToIdealDistance +=
-      nearestIdealDistance;
-  }
-);
+        const phase =
+          (
+            rowIndex +
+            phaseShift
+          ) %
+            2 ===
+          0
+            ? 0.25
+            : 0.75;
 
-const averageCandidateToIdealDistance =
-  placements.length
-    ? totalCandidateToIdealDistance /
-      placements.length
-    : Infinity;
+        const positions =
+          buildEvenPositions(
+            count,
+            phase,
+            reverseTrees
+          );
 
-const idealMatchScore =
-  averageIdealMatchDistance +
-  averageCandidateToIdealDistance
-const actualAreaPerDispenser =
-  blockArea / count;
-            const coverageDifferencePercent =
-              Math.abs(
-                actualAreaPerDispenser -
-                  targetAreaPerDispenser
-              ) /
-              targetAreaPerDispenser;
+        if (
+          positions.length !==
+          count
+        ) {
+          return;
+        }
 
-            /*
-              Penalize differences between A and B spacing,
-              but still allow them when they improve the rate
-              or coverage.
-            */
+        rowCounts.push(count);
+        rowPatterns.push(
+          positions
+        );
 
-            const intervalDifference =
-              Math.abs(
-                patternAInterval -
-                  patternBInterval
-              );
-
-            const countDifference =
-              Math.abs(
-                patternAPositions.length -
-                  patternBPositions.length
-              );
-
-            const crewEaseScore =
-              intervalDifference * 100 +
-              countDifference * 25 +
-              rowInterval * 5;
-
-         const score =
-  rateDifference * 300 +
-  coverageQuality.coverageScore +
-  assignedAreaAudit.assignedAreaScore *
-    1000 +
-  assignedAreaAudit.assignedAreaVariation *
-    750 +
-  coverageDifferencePercent * 500 +
-  crewEaseScore;
-
-            candidatePatterns.push({
-              patternType:
-                "simple-alternating-ab",
-
-              rowInterval,
-
-              patternAInterval,
-              patternBInterval,
-
-              patternAStart,
-              patternBStart,
-
-              patternAPositions,
-              patternBPositions,
-
-              placements,
-              count,
-              targetDispensers,
-              resultingRate,
-              percentOffTarget,
-
-              actualAreaPerDispenser,
-              coverageDifferencePercent,
-
-              averageNearestDistance:
-                coverageQuality
-                  .averageNearestDistance,
-
-              worstNearestDistance:
-                coverageQuality
-                  .worstNearestDistance,
-
-              coverageScore:
-                coverageQuality.coverageScore,
-
-              coverageUniformity:
-                coverageQuality
-                  .coverageUniformity,
-idealMatchScore,
-              /*
-                Keep these properties because other parts
-                of your app currently expect them.
-              */
-
-              treeInterval:
-                Math.round(
-                  (
-                    patternAInterval +
-                    patternBInterval
-                  ) / 2
-                ),
-
-              offset:
-                patternAStart !==
-                  patternBStart
-                  ? 1
-                  : 0,
-
-              score
+        positions.forEach(
+          tree => {
+            placements.push({
+              row,
+              tree
             });
           }
+        );
+      }
+    );
+
+    if (
+      placements.length !==
+      desiredCount
+    ) {
+      return null;
+    }
+
+    const resultingRate =
+      placements.length /
+      input.acres;
+
+    const evaluationInput = {
+      ...input,
+      targetRate:
+        resultingRate
+    };
+
+    const expectedSpacing =
+      Math.sqrt(
+        SQFT_PER_ACRE /
+        resultingRate
+      );
+
+    const averageAlongRowSpacing =
+      rowPatterns.length &&
+      rowPatterns[0].length
+        ? (
+            treesPerRow /
+            rowPatterns[0].length
+          ) *
+          input.treeSpacing
+        : Infinity;
+
+    const acrossRowSpacing =
+      rowInterval *
+      input.rowSpacing;
+
+    const geometryScore =
+      Math.abs(
+        acrossRowSpacing -
+        expectedSpacing *
+          0.866
+      ) +
+      Math.abs(
+        averageAlongRowSpacing -
+        expectedSpacing
+      );
+
+    return {
+      patternType:
+        placements.length ===
+        totalTreeCapacity
+          ? "every-tree"
+          : "direct-mixed-gap",
+      rowInterval,
+      treatedRows,
+      rowCounts,
+      rowPatterns,
+      placements,
+      count:
+        placements.length,
+      targetDispensers,
+      resultingRate,
+      percentOffTarget:
+        Math.abs(
+          resultingRate -
+          input.targetRate
+        ) /
+        input.targetRate,
+      actualAreaPerDispenser:
+        blockArea /
+        placements.length,
+      coverageDifferencePercent:
+        Math.abs(
+          resultingRate -
+          input.targetRate
+        ) /
+        input.targetRate,
+      patternAInterval:
+        Math.max(
+          1,
+          Math.round(
+            treesPerRow /
+            Math.max(
+              1,
+              rowCounts[0] || 1
+            )
+          )
+        ),
+      patternBInterval:
+        Math.max(
+          1,
+          Math.round(
+            treesPerRow /
+            Math.max(
+              1,
+              rowCounts[1] ||
+              rowCounts[0] ||
+              1
+            )
+          )
+        ),
+      patternAStart:
+        rowPatterns[0]?.[0] || 1,
+      patternBStart:
+        rowPatterns[1]?.[0] ||
+        rowPatterns[0]?.[0] ||
+        1,
+      patternAPositions:
+        rowPatterns[0] || [],
+      patternBPositions:
+        rowPatterns[1] ||
+        rowPatterns[0] ||
+        [],
+      treeInterval:
+        Math.max(
+          1,
+          Math.round(
+            treesPerRow /
+            Math.max(
+              1,
+              desiredCount /
+              treatedRows.length
+            )
+          )
+        ),
+      offset: 1,
+      gapSequence:
+        getGapSequence(
+          rowPatterns[0] || []
+        ),
+      rowCountSequence:
+        rowCounts.slice(
+          0,
+          Math.min(
+            rowCounts.length,
+            12
+          )
+        ),
+      geometryScore,
+      expectedSpacing,
+      evaluationInput
+    };
+  }
+
+  function auditCandidate(
+    candidate
+  ) {
+    if (
+      candidate.patternType ===
+      "every-tree"
+    ) {
+      return {
+        ...candidate,
+        coverageScore: 0,
+        coverageUniformity: 100,
+        idealMatchScore: 0,
+        auditPassed: true
+      };
+    }
+
+    const coverage =
+      scoreCoverageQuality(
+        candidate.placements,
+        orchard,
+        candidate.evaluationInput
+      );
+
+    const banding =
+      auditWholeBlockBanding(
+        candidate.placements,
+        orchard,
+        candidate.evaluationInput
+      );
+
+    const assigned =
+      auditAssignedCoverageArea(
+        candidate.placements,
+        orchard,
+        candidate.evaluationInput
+      );
+
+    /*
+      At high density, whole-tree Voronoi cells are
+      too coarse to make assigned-area percentiles a
+      hard rejection rule. Direct construction already
+      balances row totals and within-row gaps. Spacing
+      and banding remain the hard physical safeguards.
+    */
+    const highDensity =
+      candidate.resultingRate >=
+      80;
+
+    const practicalSpacing =
+      coverage
+        .closestDispenserDistance >=
+        candidate.expectedSpacing *
+          0.35 &&
+      coverage.percentile95 <=
+        candidate.expectedSpacing *
+          0.95 &&
+      coverage.worstNearestDistance <=
+        candidate.expectedSpacing *
+          1.20 &&
+      coverage.neighborDistanceSpread <=
+        1.85 &&
+      coverage.localDensitySpread <=
+        4 &&
+      coverage.clusterPenalty <=
+        0.16 &&
+      coverage.gapPenalty <=
+        0.16;
+
+    const practicalBanding =
+      banding.alongRowVariation <=
+        0.52 &&
+      banding.acrossRowVariation <=
+        0.52 &&
+      banding
+        .alongRowMaximumAdjacentChange <=
+        1.50 &&
+      banding
+        .acrossRowMaximumAdjacentChange <=
+        1.50;
+
+    const rowCountSpread =
+      Math.max(
+        ...candidate.rowCounts
+      ) -
+      Math.min(
+        ...candidate.rowCounts
+      );
+
+    const balancedWithinRows =
+      candidate.rowPatterns.every(
+        positions => {
+          if (
+            positions.length < 3
+          ) {
+            return true;
+          }
+
+          const gaps = [];
+
+          for (
+            let index = 1;
+            index < positions.length;
+            index++
+          ) {
+            gaps.push(
+              positions[index] -
+              positions[index - 1]
+            );
+          }
+
+          return (
+            Math.max(...gaps) -
+            Math.min(...gaps) <=
+            1
+          );
+        }
+      );
+
+    /*
+      Direct high-density patterns are constructed
+      with row totals differing by no more than one
+      and within-row gaps using neighboring whole-tree
+      intervals. These construction guarantees are
+      more reliable than coarse whole-tree area bands
+      when many dispensers are used.
+    */
+    const highDensityAudit =
+      rowCountSpread <= 1 &&
+      balancedWithinRows &&
+      coverage
+        .closestDispenserDistance >=
+        Math.min(
+          input.rowSpacing,
+          input.treeSpacing
+        ) *
+          0.95 &&
+      coverage
+        .worstNearestDistance <=
+        candidate.expectedSpacing *
+          1.35;
+
+    const auditPassed =
+      highDensity
+        ? highDensityAudit
+        : (
+            coverage
+              .passesSpacingAudit &&
+            banding
+              .passesBandingAudit &&
+            assigned
+              .passesAssignedAreaAudit
+          );
+
+    return {
+      ...candidate,
+      coverageScore:
+        coverage.coverageScore,
+      coverageUniformity:
+        coverage.coverageUniformity,
+      idealMatchScore:
+        candidate.geometryScore,
+      assignedAreaScore:
+        assigned.assignedAreaScore,
+      bandingScore:
+        banding.bandingScore,
+      auditPassed
+    };
+  }
+
+  function bestPatternForRate(
+    rateClass
+  ) {
+    const preliminary = [];
+
+    for (
+      let rowInterval = 1;
+      rowInterval <=
+        Math.min(
+          10,
+          input.rows
+        );
+      rowInterval++
+    ) {
+      for (
+        let phaseShift = 0;
+        phaseShift < 2;
+        phaseShift++
+      ) {
+        const pattern =
+          constructPattern(
+            rateClass,
+            rowInterval,
+            phaseShift
+          );
+
+        if (pattern) {
+          preliminary.push(
+            pattern
+          );
         }
       }
     }
+
+    preliminary.sort(
+      (a, b) =>
+        a.geometryScore -
+        b.geometryScore
+    );
+
+    /*
+      Audit only the most plausible directly
+      constructed finalists. This avoids the long
+      brute-force delay.
+    */
+    const finalists =
+      preliminary.slice(0, 4);
+
+    const audited =
+      finalists
+        .map(auditCandidate)
+        .filter(
+          pattern =>
+            pattern.auditPassed
+        )
+        .sort(
+          (a, b) => {
+            if (
+              a.coverageScore !==
+              b.coverageScore
+            ) {
+              return (
+                a.coverageScore -
+                b.coverageScore
+              );
+            }
+
+            return (
+              a.geometryScore -
+              b.geometryScore
+            );
+          }
+        );
+
+    return audited[0] || null;
   }
-  /*
-    Diagnostic output.
 
-    Put the candidates closest to the requested total
-    first, then the candidates with the best coverage
-    score.
+  const requestedRateClass =
+    Math.round(
+      input.inventoryIsLimited
+        ? targetDispensers /
+          input.acres
+        : input.targetRate
+    );
 
-    Open the browser console after generating patterns
-    to inspect this table.
-  */
-  rejectedPatterns.sort(
-    (a, b) => {
-      const countDifferenceA =
-        Math.abs(
-          a.count -
-          targetDispensers
-        );
+  const selectedPatterns = [];
+  const usedMapKeys = new Set();
 
-      const countDifferenceB =
-        Math.abs(
-          b.count -
-          targetDispensers
-        );
-
-      if (
-        countDifferenceA !==
-        countDifferenceB
-      ) {
-        return (
-          countDifferenceA -
-          countDifferenceB
-        );
-      }
-
-      return (
-        a.coverageScore -
-        b.coverageScore
-      );
-    }
-  );
-
-  if (
-    !showClosest &&
-    rejectedPatterns.length
+  function addIfUnique(
+    pattern,
+    group
   ) {
-    console.group(
-      "CT APP rejected-pattern audit"
-    );
+    if (!pattern) return false;
 
-    console.log(
-      "Requested rate:",
-      input.targetRate
-    );
-
-    console.log(
-      "Requested total:",
-      targetDispensers
-    );
-
-    console.log(
-  "Expected spacing:",
-  Math.sqrt(
-    SQFT_PER_ACRE /
-    input.targetRate
-  )
-);
-
-    console.table(
-      rejectedPatterns
-        .slice(0, 20)
-        .map(pattern => ({
-          total:
-            pattern.count,
-
-          rate:
-            pattern.resultingRate
-              .toFixed(2),
-
-          rowInterval:
-            pattern.rowInterval,
-
-          patternA:
-            `${pattern.patternAStart} every ${pattern.patternAInterval}`,
-
-          patternB:
-            `${pattern.patternBStart} every ${pattern.patternBInterval}`,
-
-          failedAudits:
-            pattern.rejectionReasons
-              .join(", "),
-
-          spacingFailures:
-            pattern.spacingFailures
-              .join(", "),
-
-          bandingFailures:
-            pattern.bandingFailures
-              .join(", "),
-
-          assignedAreaFailures:
-            pattern.assignedAreaFailures
-              .join(", "),
-
-          closestPair:
-            pattern
-              .closestDispenserDistance
-              .toFixed(1),
-
-          medianSpacing:
-            pattern
-              .medianNeighborDistance
-              .toFixed(1),
-
-          percentile95Gap:
-            pattern.percentile95
-              .toFixed(1),
-
-          worstGap:
-            pattern
-              .worstNearestDistance
-              .toFixed(1),
-
-          neighborSpread:
-            pattern
-              .neighborDistanceSpread
-              .toFixed(2),
-
-          densitySpread:
-            pattern
-              .localDensitySpread,
-
-          areaSpread:
-            pattern
-              .assignedAreaSpread
-              .toFixed(2),
-
-          areaVariation:
-            pattern
-              .assignedAreaVariation
-              .toFixed(2)
-        }))
-    );
-
-    console.log(
-      "Best rejected candidate:",
-      rejectedPatterns[0]
-    );
-
-    console.groupEnd();
-  }
-  candidatePatterns.sort((a, b) => {
-     /*
-    When the user requests closest practical patterns:
-
-    1. Closest dispenser count/rate
-    2. Closest expected coverage area
-    3. Best whole-block coverage score
-    4. Simplest A/B pattern for workers
-  */
-  if (showClosest) {
-    const rateDifferenceA = Math.abs(
-      a.count - targetDispensers
-    );
-
-    const rateDifferenceB = Math.abs(
-      b.count - targetDispensers
-    );
-
-    if (rateDifferenceA !== rateDifferenceB) {
-      return rateDifferenceA - rateDifferenceB;
-    }
+    const mapKey =
+      pattern.placements
+        .map(
+          place =>
+            `${place.row}:${place.tree}`
+        )
+        .join("|");
 
     if (
-      a.coverageDifferencePercent !==
-      b.coverageDifferencePercent
+      usedMapKeys.has(mapKey)
     ) {
-      return (
-        a.coverageDifferencePercent -
-        b.coverageDifferencePercent
-      );
+      return false;
     }
 
-    if (a.coverageScore !== b.coverageScore) {
-      return a.coverageScore - b.coverageScore;
-    }
-
-    const simplicityA = Math.abs(
-      a.patternAInterval -
-      a.patternBInterval
-    );
-
-    const simplicityB = Math.abs(
-      b.patternAInterval -
-      b.patternBInterval
-    );
-
-    return simplicityA - simplicityB;
-  } 
- /*
-  First, prefer the repeatable pattern that most
-  closely matches the ideal mathematical layout.
-
-  Small differences are ignored so that noticeably
-  better coverage or rate can still determine the
-  final recommendation.
-*/
-const idealMatchTolerance = 3; // feet
-
-if (
-  Math.abs(
-    a.idealMatchScore -
-    b.idealMatchScore
-  ) > idealMatchTolerance
-) {
-  return (
-    a.idealMatchScore -
-    b.idealMatchScore
-  );
-}
-    /*
-  Normal pattern ranking:
-
-  If coverage is similar, prefer the rate closest
-  to the selected rate.
-
-  If coverage is meaningfully different, prefer
-  the better coverage match.
-*/
-
-const coverageDifferenceA =
-  a.coverageDifferencePercent;
-
-const coverageDifferenceB =
-  b.coverageDifferencePercent;
-
-const coverageSimilarityTolerance = 0.01;
-
-const coverageIsSimilar =
-  Math.abs(
-    coverageDifferenceA -
-    coverageDifferenceB
-  ) <= coverageSimilarityTolerance;
-
-const rateDifferenceA =
-  Math.abs(
-    a.resultingRate -
-    input.targetRate
-  );
-
-const rateDifferenceB =
-  Math.abs(
-    b.resultingRate -
-    input.targetRate
-  );
-
-if (coverageIsSimilar) {
-  if (rateDifferenceA !== rateDifferenceB) {
-    return rateDifferenceA - rateDifferenceB;
-  }
-
-  if (
-    coverageDifferenceA !==
-    coverageDifferenceB
-  ) {
-    return (
-      coverageDifferenceA -
-      coverageDifferenceB
-    );
-  }
-} else {
-  return (
-    coverageDifferenceA -
-    coverageDifferenceB
-  );
-}
-
-if (a.coverageScore !== b.coverageScore) {
-  return a.coverageScore - b.coverageScore;
-}
-
-const simplicityA =
-  Math.abs(
-    a.patternAInterval -
-    a.patternBInterval
-  ) +
-  a.rowInterval;
-
-const simplicityB =
-  Math.abs(
-    b.patternAInterval -
-    b.patternBInterval
-  ) +
-  b.rowInterval;
-
-return simplicityA - simplicityB;
-
-  
-});
-
-  const uniquePatterns = [];
-  const seen = new Set();
-
-  candidatePatterns.forEach(pattern => {
-    const key = [
-      pattern.rowInterval,
-      pattern.patternAInterval,
-      pattern.patternBInterval,
-      pattern.patternAStart,
-      pattern.patternBStart,
-      pattern.count
-    ].join("|");
-
-    if (!seen.has(key)) {
-      seen.add(key);
-      uniquePatterns.push(pattern);
-    }
-  });
-
-  if (!uniquePatterns.length) {
-  return {
-    orchard,
-    patterns: [],
-    bestRejectedPattern,
-
-    rejectedPatterns:
-      rejectedPatterns.slice(
-        0,
-        20
-      )
-  };
-}
-
-  /*
-  Group candidates by the whole-number deployment-rate
-  class shown to the grower.
-
-  Examples:
-
-  32 class:
-  31.5 through 32.499...
-
-  33 class:
-  32.5 through 33.499...
-
-  The decimal rate remains internal. The grower sees
-  only the rounded whole-number rate.
-*/
-const requestedRateClass =
-  Math.round(
-    input.targetRate
-  );
-
-const requestedClassPatterns =
-  [];
-
-const lowerClassPatterns =
-  [];
-
-const higherClassPatterns =
-  [];
-
-uniquePatterns.forEach(
-  pattern => {
-    const patternRateClass =
+    usedMapKeys.add(mapKey);
+    pattern.rateClass =
       Math.round(
         pattern.resultingRate
       );
-
-    pattern.rateClass =
-      patternRateClass;
-
-    if (
-      patternRateClass ===
-      requestedRateClass
-    ) {
-      requestedClassPatterns.push(
-        pattern
-      );
-
-      return;
-    }
-
-    if (
-      patternRateClass <
-      requestedRateClass
-    ) {
-      lowerClassPatterns.push(
-        pattern
-      );
-
-      return;
-    }
-
-    higherClassPatterns.push(
-      pattern
-    );
-  }
-);
-
-/*
-  uniquePatterns is already ranked by the engine.
-
-  Preserve that existing quality order within the
-  requested rate class.
-*/
-requestedClassPatterns.sort(
-  (a, b) =>
-    uniquePatterns.indexOf(a) -
-    uniquePatterns.indexOf(b)
-);
-
-/*
-  For lower-rate alternatives, first prefer the class
-  nearest the grower's requested class.
-
-  Within the same lower class, preserve the engine's
-  existing quality ranking.
-*/
-lowerClassPatterns.sort(
-  (a, b) => {
-    if (
-      a.rateClass !==
-      b.rateClass
-    ) {
-      return (
-        b.rateClass -
-        a.rateClass
-      );
-    }
-
-    return (
-      uniquePatterns.indexOf(a) -
-      uniquePatterns.indexOf(b)
-    );
-  }
-);
-
-/*
-  For higher-rate alternatives, first prefer the class
-  requiring the smallest increase.
-
-  Within the same higher class, preserve the engine's
-  existing quality ranking.
-*/
-higherClassPatterns.sort(
-  (a, b) => {
-    if (
-      a.rateClass !==
-      b.rateClass
-    ) {
-      return (
-        a.rateClass -
-        b.rateClass
-      );
-    }
-
-    return (
-      uniquePatterns.indexOf(a) -
-      uniquePatterns.indexOf(b)
-    );
-  }
-);
-
-const selectedPatterns = [];
-
-function addSelectedPattern(
-  pattern
-) {
-  if (
-    !pattern ||
-    selectedPatterns.includes(
-      pattern
-    )
-  ) {
-    return;
-  }
-
-  selectedPatterns.push(
-    pattern
-  );
-}
-
-/*
-  Pattern 1 must come from the requested rate class
-  whenever a valid requested-class pattern exists.
-
-  This protects the grower's expected inventory.
-*/
-addSelectedPattern(
-  requestedClassPatterns[0]
-);
-
-/*
-  Pattern 2 should also remain in the requested class
-  when another valid requested-class pattern exists.
-*/
-addSelectedPattern(
-  requestedClassPatterns[1]
-);
-
-/*
-  If fewer than two requested-class patterns exist,
-  fill the remaining early position with the best
-  lower-rate alternative.
-
-  The grower can use the remaining purchased
-  dispensers along the highest-pressure edge.
-*/
-if (
-  selectedPatterns.length < 2
-) {
-  addSelectedPattern(
-    lowerClassPatterns[0]
-  );
-}
-
-/*
-  Pattern 3 should normally be the best unused
-  lower-rate alternative.
-
-  A higher-rate pattern is used only when no unused
-  lower-rate alternative exists.
-*/
-const unusedLowerPattern =
-  lowerClassPatterns.find(
-    pattern =>
-      !selectedPatterns.includes(
-        pattern
-      )
-  );
-
-if (
-  unusedLowerPattern
-) {
-  addSelectedPattern(
-    unusedLowerPattern
-  );
-} else {
-  addSelectedPattern(
-    higherClassPatterns[0]
-  );
-}
-
-/*
-  If fewer than three options have been selected,
-  first use another requested-class pattern, then
-  another lower-class pattern, and finally a
-  higher-class pattern.
-*/
-requestedClassPatterns.forEach(
-  pattern => {
-    if (
-      selectedPatterns.length >= 3
-    ) {
-      return;
-    }
-
-    addSelectedPattern(
-      pattern
-    );
-  }
-);
-
-lowerClassPatterns.forEach(
-  pattern => {
-    if (
-      selectedPatterns.length >= 3
-    ) {
-      return;
-    }
-
-    addSelectedPattern(
-      pattern
-    );
-  }
-);
-
-higherClassPatterns.forEach(
-  pattern => {
-    if (
-      selectedPatterns.length >= 3
-    ) {
-      return;
-    }
-
-    addSelectedPattern(
-      pattern
-    );
-  }
-);
-
-/*
-  Store inventory guidance for the UI.
-
-  Lower-rate patterns leave dispensers available for
-  the highest-pressure edge.
-
-  Higher-rate patterns require additional inventory.
-*/
-selectedPatterns.forEach(
-  pattern => {
-    if (
-      pattern.rateClass ===
-      requestedRateClass
-    ) {
-      pattern.recommendationGroup =
-        "requested-rate-class";
-    } else if (
-      pattern.rateClass <
-      requestedRateClass
-    ) {
-      pattern.recommendationGroup =
-        "lower-rate-class";
-    } else {
-      pattern.recommendationGroup =
-        "higher-rate-class";
-    }
-
+    pattern.recommendationGroup =
+      group;
     pattern.leftoverDispensers =
       Math.max(
         0,
         targetDispensers -
         pattern.count
       );
-
     pattern.additionalDispensers =
       Math.max(
         0,
         pattern.count -
         targetDispensers
       );
+
+    selectedPatterns.push(
+      pattern
+    );
+
+    return true;
   }
-);
-    return {
+
+  const requestedPattern =
+    bestPatternForRate(
+      requestedRateClass
+    );
+
+  addIfUnique(
+    requestedPattern,
+    "requested-rate-class"
+  );
+
+  const searchRange =
+    showClosest
+      ? Math.max(
+          20,
+          Math.ceil(
+            requestedRateClass *
+            0.20
+          )
+        )
+      : Math.max(
+          3,
+          Math.ceil(
+            requestedRateClass *
+            0.03
+          )
+        );
+
+  let lowerPattern = null;
+
+  for (
+    let difference = 1;
+    difference <= searchRange;
+    difference++
+  ) {
+    const rateClass =
+      requestedRateClass -
+      difference;
+
+    if (rateClass < 1) break;
+
+    lowerPattern =
+      bestPatternForRate(
+        rateClass
+      );
+
+    if (lowerPattern) break;
+  }
+
+  addIfUnique(
+    lowerPattern,
+    "lower-rate-class"
+  );
+
+  let higherPattern = null;
+
+  for (
+    let difference = 1;
+    difference <= searchRange;
+    difference++
+  ) {
+    const rateClass =
+      requestedRateClass +
+      difference;
+
+    if (
+      input.selectedProduct &&
+      rateClass >
+        input.selectedProduct.max
+    ) {
+      break;
+    }
+
+    if (
+      Math.round(
+        rateClass *
+        input.acres
+      ) >
+      totalTreeCapacity
+    ) {
+      break;
+    }
+
+    higherPattern =
+      bestPatternForRate(
+        rateClass
+      );
+
+    if (higherPattern) break;
+  }
+
+  addIfUnique(
+    higherPattern,
+    "higher-rate-class"
+  );
+
+  return {
     orchard,
     patterns:
       selectedPatterns,
-
-    bestRejectedPattern,
-
-    rejectedPatterns:
-      rejectedPatterns.slice(
-        0,
-        20
-      )
+    bestRejectedPattern: null,
+    rejectedPatterns: [],
+    capacityExceeded: false,
+    totalTreeCapacity,
+    maximumRate:
+      totalTreeCapacity /
+      input.acres
   };
 }
-/*
 
 /*
   Generate repeatable deployment plans.
 
-  The mathematical layout remains available as a
-  development benchmark, but the grower-facing plan
-  must come from the staggered repeatable-pattern engine.
+  The direct-construction engine builds balanced
+  mixed-gap patterns before auditing a few finalists.
 */
 function generatePlans(showClosest = false) {
   
@@ -5031,6 +4156,43 @@ function generatePlans(showClosest = false) {
     input.inventoryIsLimited
       ? input.availableDispensers
       : input.labelTargetDispensers;
+
+  const estimatedRowLength =
+    (
+      input.acres * 43560
+    ) /
+    (
+      input.rowSpacing *
+      input.rows
+    );
+
+  const estimatedTreesPerRow =
+    Math.max(
+      1,
+      Math.round(
+        estimatedRowLength /
+        input.treeSpacing
+      )
+    );
+
+  const totalTreeCapacity =
+    input.rows *
+    estimatedTreesPerRow;
+
+  if (
+    input.targetDispensers >
+    totalTreeCapacity
+  ) {
+    const maximumRate =
+      totalTreeCapacity /
+      input.acres;
+
+    alert(
+      `This block has approximately ${totalTreeCapacity} trees, so the requested total of ${input.targetDispensers} would require more than one dispenser on some trees. The maximum practical rate is approximately ${maximumRate.toFixed(1)} per acre.`
+    );
+
+    return;
+  }
 
   const idealLayout =
   buildIdealLayout(input);
@@ -5602,6 +4764,30 @@ function renderOptions(plans) {
 }
 
 function describePattern(plan) {
+  if (
+    plan.patternType ===
+    "every-tree"
+  ) {
+    return "Place one dispenser on every tree. No staggered optimization is needed because the requested rate uses the full tree capacity of this block.";
+  }
+
+  if (
+    plan.patternType ===
+    "direct-mixed-gap"
+  ) {
+    const gapText =
+      plan.gapSequence?.length
+        ? plan.gapSequence.join(", ")
+        : "the displayed mixed spacing";
+
+    const rowText =
+      plan.rowInterval === 1
+        ? "every row"
+        : `every ${ordinal(plan.rowInterval)} row`;
+
+    return `Treat ${rowText}. Use the repeating within-row gap sequence ${gapText} trees, and shift the sequence on neighboring treated rows to maintain staggered coverage. Follow the map for the starting phase from the selected highest-pressure edge.`;
+  }
+
   const rowText =
     plan.rowInterval === 1
       ? "every row"
