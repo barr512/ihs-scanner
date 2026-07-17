@@ -5273,6 +5273,8 @@ mapContext.innerHTML = `
   Rows: <strong>${input.rowDirection === "east-west" ? "East–West" : "North–South"}</strong>
   <br>
   Highest pressure edge: <strong>${input.pressureEdge === "none" ? "None" : input.pressureEdge.toUpperCase()}</strong>
+  <br>
+  Diagram spacing is scaled to the entered row and tree spacing.
 `;
 mapEl.appendChild(mapContext);
 
@@ -5385,10 +5387,82 @@ function buildMapView(layout, maxRows, maxTrees, className, input) {
   const orchardEl = document.createElement("div");
   orchardEl.className = className;
 
+  /*
+    Draw the orchard using the entered physical
+    proportions. For example, 12-foot rows and
+    6-foot tree spacing display with twice as much
+    distance across rows as between trees.
+  */
+  const overviewScale =
+    className.includes(
+      "overview-map"
+    );
+
+  const dotSize =
+    overviewScale ? 5 : 13;
+
+  const baseCenterDistance =
+    overviewScale ? 7 : 18;
+
+  const maximumCenterDistance =
+    overviewScale ? 14 : 36;
+
+  const smallestPhysicalSpacing =
+    Math.min(
+      input.rowSpacing,
+      input.treeSpacing
+    );
+
+  function scaledCenterDistance(
+    physicalSpacing
+  ) {
+    return Math.min(
+      maximumCenterDistance,
+      baseCenterDistance *
+        physicalSpacing /
+        smallestPhysicalSpacing
+    );
+  }
+
+  const outerPhysicalSpacing =
+    input.rowDirection ===
+    "east-west"
+      ? input.rowSpacing
+      : input.treeSpacing;
+
+  const innerPhysicalSpacing =
+    input.rowDirection ===
+    "east-west"
+      ? input.treeSpacing
+      : input.rowSpacing;
+
+  const outerGap =
+    Math.max(
+      1,
+      scaledCenterDistance(
+        outerPhysicalSpacing
+      ) -
+      dotSize
+    );
+
+  const innerGap =
+    Math.max(
+      1,
+      scaledCenterDistance(
+        innerPhysicalSpacing
+      ) -
+      dotSize
+    );
+
+  orchardEl.style.gap =
+    `${outerGap}px`;
+
   if (input.rowDirection === "east-west") {
     for (let rowIndex = rowStartIndex; rowIndex < rowStartIndex + rows; rowIndex++) {
       const treeLine = document.createElement("div");
       treeLine.className = "tree-line";
+      treeLine.style.gap =
+        `${innerGap}px`;
 
       for (let treeIndex = treeStartIndex; treeIndex < treeStartIndex + treesPerRow; treeIndex++) {
         const tree = document.createElement("div");
@@ -5406,6 +5480,8 @@ function buildMapView(layout, maxRows, maxTrees, className, input) {
     for (let treeIndex = treeStartIndex; treeIndex < treeStartIndex + treesPerRow; treeIndex++) {
       const treeLine = document.createElement("div");
       treeLine.className = "tree-line";
+      treeLine.style.gap =
+        `${innerGap}px`;
 
       for (let rowIndex = rowStartIndex; rowIndex < rowStartIndex + rows; rowIndex++) {
         const tree = document.createElement("div");
