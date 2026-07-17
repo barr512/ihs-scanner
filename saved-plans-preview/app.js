@@ -5658,16 +5658,46 @@ function selectPlan(plan, input) {
   instructionsEl.classList.remove("hidden");
 
   selectedPlanText.innerHTML = `
-    <button class="secondary-button" onclick="showOptionsScreen()">
+    <button class="secondary-button no-print" onclick="showOptionsScreen()">
       Back to Pattern Options
     </button>
-    <br><br>
-   <strong>Pattern Details</strong><br>
-    ${describePattern(plan)}
+
+    <div class="pattern-details-heading">
+      <strong>Pattern Details</strong>
+      <br>
+      ${describePattern(plan)}
+    </div>
+
+    <section class="plan-save-panel no-print">
+      <h3>Save or Print This Plan</h3>
+
+      <label>
+        Block Name
+        <input
+          id="planBlockName"
+          type="text"
+          maxlength="80"
+          placeholder="Example: North Block"
+          value="${escapeHtmlAttribute(currentOpenedBlockName)}">
+      </label>
+
+      <div class="plan-action-grid">
+        <button id="saveBlockPlanBtn" type="button">
+          Save to Block
+        </button>
+
+        <button id="printBlockPlanBtn" type="button" class="secondary-button">
+          Print / Save as PDF
+        </button>
+      </div>
+
+      <p id="planSaveStatus" class="hint"></p>
+    </section>
   `;
 
- renderMap(plan.layout, input);
+  renderMap(plan.layout, input);
   renderInstructions(plan, input);
+  setupPlanActionButtons();
 }
 
 function renderMap(layout, input) {
@@ -5881,38 +5911,10 @@ function renderInstructions(plan, input) {
       <li>Estimated trees per row: ${input.treesPerRow}</li>
     </ul>
 
-    <section class="plan-save-panel no-print">
-      <h3>Save This Plan</h3>
-
-      <label>
-        Block Name
-        <input
-          id="planBlockName"
-          type="text"
-          maxlength="80"
-          placeholder="Example: North Block"
-          value="${escapeHtmlAttribute(currentOpenedBlockName)}">
-      </label>
-
-      <div class="plan-action-grid">
-        <button id="saveBlockPlanBtn" type="button">
-          Save to Block
-        </button>
-
-        <button id="printBlockPlanBtn" type="button" class="secondary-button">
-          Print / Save as PDF
-        </button>
-      </div>
-
-      <p id="planSaveStatus" class="hint"></p>
-    </section>
-
     <button class="secondary-button no-print" onclick="showOptionsScreen()">
       Back to Pattern Options
     </button>
   `;
-
-  setupPlanActionButtons();
 }
 function ordinal(number) {
   const suffixes = ["th", "st", "nd", "rd"];
