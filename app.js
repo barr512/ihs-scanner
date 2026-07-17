@@ -3610,13 +3610,13 @@ if (
             }
 
             /*
-              Never recommend more dispensers than the grower
-              requested or entered as available inventory.
-              A lower-rate pattern can leave extras for borders;
-              a higher-rate pattern would require inventory the
-              grower may not have.
+              When the grower entered a limited inventory,
+              never display a pattern that exceeds it.
+              Otherwise, a slightly higher-rate alternative
+              may be shown only after requested and lower options.
             */
             if (
+              inventoryIsLimited &&
               count > targetDispensers
             ) {
               continue;
@@ -4742,14 +4742,19 @@ return simplicityA - simplicityB;
   const seen = new Set();
 
   candidatePatterns.forEach(pattern => {
-    const key = [
-      pattern.rowInterval,
-      pattern.patternAInterval,
-      pattern.patternBInterval,
-      pattern.patternAStart,
-      pattern.patternBStart,
-      pattern.count
-    ].join("|");
+    /*
+      Deduplicate the actual map, not merely the pattern
+      settings. Different interval settings can sometimes
+      resolve to the same trees.
+    */
+    const key =
+      pattern.placements
+        .map(
+          placement =>
+            `${placement.row}:${placement.tree}`
+        )
+        .sort()
+        .join("|");
 
     if (!seen.has(key)) {
       seen.add(key);
@@ -4922,102 +4927,87 @@ function addSelectedPattern(
 }
 
 /*
-  Pattern 1 must come from the requested rate class
-  whenever a valid requested-class pattern exists.
+  Grower-facing option priority:
 
-  This protects the grower's expected inventory.
+  1. Best pattern in the requested displayed-rate class.
+  2. Best distinct pattern in the nearest lower class.
+  3. Best distinct pattern in the nearest higher class.
+
+  If one of the first two groups is unavailable, fill that
+  position with another requested or lower pattern before
+  considering a higher-rate option.
 */
 addSelectedPattern(
   requestedClassPatterns[0]
 );
 
-/*
-  Pattern 2 should also remain in the requested class
-  when another valid requested-class pattern exists.
-*/
 addSelectedPattern(
-  requestedClassPatterns[1]
+  lowerClassPatterns[0]
 );
 
-/*
-  If fewer than two requested-class patterns exist,
-  fill the remaining early position with the best
-  lower-rate alternative.
-
-  The grower can use the remaining purchased
-  dispensers along the highest-pressure edge.
-*/
 if (
   selectedPatterns.length < 2
 ) {
   addSelectedPattern(
-    lowerClassPatterns[0]
+    requestedClassPatterns[1]
   );
 }
-
-/*
-  Pattern 3 should normally be the best unused
-  lower-rate alternative.
-
-  A higher-rate pattern is used only when no unused
-  lower-rate alternative exists.
-*/
-const unusedLowerPattern =
-  lowerClassPatterns.find(
-    pattern =>
-      !selectedPatterns.includes(
-        pattern
-      )
-  );
 
 if (
-  unusedLowerPattern
+  selectedPatterns.length < 2
 ) {
   addSelectedPattern(
-    unusedLowerPattern
+    lowerClassPatterns[1]
   );
 }
 
 /*
-  If fewer than three options have been selected,
-  first use another requested-class pattern, then
-  another lower-class pattern, and finally a
-  higher-class pattern.
+  A higher-rate pattern is permitted only after requested
+  and lower options have been offered first.
+*/
+addSelectedPattern(
+  higherClassPatterns[0]
+);
+
+/*
+  Fill any remaining positions while preserving the same
+  priority and the actual-layout deduplication above.
 */
 requestedClassPatterns.forEach(
   pattern => {
     if (
-      selectedPatterns.length >= 3
+      selectedPatterns.length < 3
     ) {
-      return;
+      addSelectedPattern(
+        pattern
+      );
     }
-
-    addSelectedPattern(
-      pattern
-    );
   }
 );
 
 lowerClassPatterns.forEach(
   pattern => {
     if (
-      selectedPatterns.length >= 3
+      selectedPatterns.length < 3
     ) {
-      return;
+      addSelectedPattern(
+        pattern
+      );
     }
-
-    addSelectedPattern(
-      pattern
-    );
   }
 );
 
-/*
-  Higher-rate candidates are intentionally not selected.
-  Growers can place leftover dispensers from a lower-rate
-  pattern along borders, but cannot be expected to supply
-  additional dispensers for a higher-rate pattern.
-*/
+higherClassPatterns.forEach(
+  pattern => {
+    if (
+      selectedPatterns.length < 3
+    ) {
+      addSelectedPattern(
+        pattern
+      );
+    }
+  }
+);
 
 /*
   Store inventory guidance for the UI.
@@ -5400,7 +5390,7 @@ ${
       <p class="pattern-warning">
         <strong>Closest practical result:</strong>
         No fully optimized pattern passed at the requested rate.
-        The options below use no more dispensers than requested.
+        Requested-rate and lower-rate options are shown first. A slightly higher-rate alternative may appear third.
         Review the coverage fit before selecting a plan; leftover
         dispensers may be placed along borders or the highest-pressure edge.
       </p>
@@ -5767,7 +5757,7 @@ function renderOptions(plans) {
       ? `
         <p class="pattern-warning">
           Closest practical option—not a fully optimized coverage match.
-          This pattern does not exceed the requested dispenser total.
+          Requested and lower-rate options are prioritized; a higher-rate alternative is shown only after them.
         </p>
       `
       : ``
