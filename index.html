@@ -271,6 +271,24 @@
 
 </main>
 
+
+<div
+  id="planningOverlay"
+  class="planning-overlay"
+  role="status"
+  aria-live="polite"
+  aria-hidden="true"
+  hidden>
+  <div class="planning-dialog">
+    <div class="planning-spinner" aria-hidden="true"></div>
+    <h2 id="planningOverlayTitle">Building Deployment Patterns</h2>
+    <p id="planningOverlayMessage">
+      Checking rate, spacing, coverage, and practical field patterns…
+    </p>
+    <p class="hint">This may take a moment on larger blocks.</p>
+  </div>
+</div>
+
 <script src="coverageEngine.js"></script>
 <script src="app.js"></script>
 
