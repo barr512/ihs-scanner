@@ -432,3 +432,68 @@ button:active {
     display: none !important;
   }
 }
+
+
+.planning-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(16, 45, 22, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.planning-overlay[hidden] {
+  display: none;
+}
+
+.planning-dialog {
+  width: min(100%, 420px);
+  padding: 28px 24px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+
+.planning-dialog h2 {
+  margin: 14px 0 8px;
+}
+
+.planning-dialog p {
+  margin: 8px 0;
+}
+
+.planning-spinner {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto;
+  border: 6px solid #dbe9dc;
+  border-top-color: #2e7d32;
+  border-radius: 50%;
+  animation: planning-spin 0.8s linear infinite;
+}
+
+.planning-active {
+  overflow: hidden;
+}
+
+@keyframes planning-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planning-spinner {
+    animation-duration: 1.8s;
+  }
+}
+
+@media print {
+  .planning-overlay {
+    display: none !important;
+  }
+}
