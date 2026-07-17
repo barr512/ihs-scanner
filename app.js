@@ -145,6 +145,25 @@ let currentInput = null;
 let currentPlans = [];
 let currentRejectedPattern = null;
 
+const SAVED_BLOCKS_STORAGE_KEY =
+  "ctAppSavedBlocksV1";
+
+const savedBlocksList =
+  document.getElementById("savedBlocksList");
+
+const exportBlocksBtn =
+  document.getElementById("exportBlocksBtn");
+
+const importBlocksInput =
+  document.getElementById("importBlocksInput");
+
+const savedBlocksStatus =
+  document.getElementById("savedBlocksStatus");
+
+let currentSelectedPlan = null;
+let currentOpenedBlockName = "";
+
+
 if (generateBtn) {
   generateBtn.addEventListener(
     "click",
@@ -252,6 +271,8 @@ function showOptionsScreen() {
 }
 
 function showPlanScreen(plan) {
+  currentSelectedPlan = plan;
+
   setupScreen.classList.add("hidden");
   resultsScreen.classList.remove("hidden");
 
@@ -5860,10 +5881,38 @@ function renderInstructions(plan, input) {
       <li>Estimated trees per row: ${input.treesPerRow}</li>
     </ul>
 
-    <button class="secondary-button" onclick="showOptionsScreen()">
+    <section class="plan-save-panel no-print">
+      <h3>Save This Plan</h3>
+
+      <label>
+        Block Name
+        <input
+          id="planBlockName"
+          type="text"
+          maxlength="80"
+          placeholder="Example: North Block"
+          value="${escapeHtmlAttribute(currentOpenedBlockName)}">
+      </label>
+
+      <div class="plan-action-grid">
+        <button id="saveBlockPlanBtn" type="button">
+          Save to Block
+        </button>
+
+        <button id="printBlockPlanBtn" type="button" class="secondary-button">
+          Print / Save as PDF
+        </button>
+      </div>
+
+      <p id="planSaveStatus" class="hint"></p>
+    </section>
+
+    <button class="secondary-button no-print" onclick="showOptionsScreen()">
       Back to Pattern Options
     </button>
   `;
+
+  setupPlanActionButtons();
 }
 function ordinal(number) {
   const suffixes = ["th", "st", "nd", "rd"];
@@ -5871,3 +5920,663 @@ function ordinal(number) {
 
   return number + (suffixes[(value - 20) % 10] || suffixes[value] || suffixes[0]);
 }
+
+
+function getSavedBlocks() {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem(
+        SAVED_BLOCKS_STORAGE_KEY
+      ) || "[]"
+    );
+
+    return Array.isArray(saved)
+      ? saved
+      : [];
+  } catch (error) {
+    console.error(
+      "Could not read saved blocks:",
+      error
+    );
+
+    return [];
+  }
+}
+
+function writeSavedBlocks(blocks) {
+  localStorage.setItem(
+    SAVED_BLOCKS_STORAGE_KEY,
+    JSON.stringify(blocks)
+  );
+}
+
+function normalizeBlockName(name) {
+  return String(name || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase();
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function escapeHtmlAttribute(value) {
+  return escapeHtml(value);
+}
+
+function makeSerializableInput(input) {
+  return JSON.parse(
+    JSON.stringify(input)
+  );
+}
+
+function makeSerializablePlan(plan) {
+  return JSON.parse(
+    JSON.stringify(plan)
+  );
+}
+
+function setupPlanActionButtons() {
+  const saveButton =
+    document.getElementById(
+      "saveBlockPlanBtn"
+    );
+
+  const printButton =
+    document.getElementById(
+      "printBlockPlanBtn"
+    );
+
+  if (saveButton) {
+    saveButton.addEventListener(
+      "click",
+      saveCurrentPlanToBlock
+    );
+  }
+
+  if (printButton) {
+    printButton.addEventListener(
+      "click",
+      printCurrentPlan
+    );
+  }
+}
+
+function saveCurrentPlanToBlock() {
+  const blockNameInput =
+    document.getElementById(
+      "planBlockName"
+    );
+
+  const status =
+    document.getElementById(
+      "planSaveStatus"
+    );
+
+  const blockName =
+    blockNameInput?.value
+      ?.trim()
+      .replace(/\s+/g, " ");
+
+  if (!blockName) {
+    if (status) {
+      status.textContent =
+        "Enter a block name before saving.";
+    }
+
+    blockNameInput?.focus();
+    return;
+  }
+
+  if (
+    !currentInput ||
+    !currentSelectedPlan
+  ) {
+    if (status) {
+      status.textContent =
+        "Open a deployment pattern before saving.";
+    }
+
+    return;
+  }
+
+  const blocks = getSavedBlocks();
+  const normalizedName =
+    normalizeBlockName(blockName);
+
+  const existingIndex =
+    blocks.findIndex(
+      block =>
+        normalizeBlockName(
+          block.name
+        ) === normalizedName
+    );
+
+  if (existingIndex >= 0) {
+    const replaceConfirmed = confirm(
+      `"${blocks[existingIndex].name}" already has a saved plan. Replace it with this plan?`
+    );
+
+    if (!replaceConfirmed) {
+      if (status) {
+        status.textContent =
+          "The existing saved plan was not changed.";
+      }
+
+      return;
+    }
+  }
+
+  const savedRecord = {
+    version: 1,
+    id:
+      existingIndex >= 0
+        ? blocks[existingIndex].id
+        : crypto.randomUUID(),
+    name: blockName,
+    savedAt:
+      new Date().toISOString(),
+    input:
+      makeSerializableInput(
+        currentInput
+      ),
+    plan:
+      makeSerializablePlan(
+        currentSelectedPlan
+      )
+  };
+
+  if (existingIndex >= 0) {
+    blocks[existingIndex] =
+      savedRecord;
+  } else {
+    blocks.push(savedRecord);
+  }
+
+  blocks.sort(
+    (a, b) =>
+      a.name.localeCompare(b.name)
+  );
+
+  writeSavedBlocks(blocks);
+
+  currentOpenedBlockName =
+    blockName;
+
+  if (status) {
+    status.textContent =
+      `Saved to "${blockName}" on this device.`;
+  }
+
+  renderSavedBlocks();
+}
+
+function openSavedBlock(blockId) {
+  const block =
+    getSavedBlocks().find(
+      savedBlock =>
+        savedBlock.id === blockId
+    );
+
+  if (!block) {
+    renderSavedBlocks(
+      "That saved block could not be found."
+    );
+    return;
+  }
+
+  currentInput =
+    makeSerializableInput(
+      block.input
+    );
+
+  currentSelectedPlan =
+    makeSerializablePlan(
+      block.plan
+    );
+
+  currentOpenedBlockName =
+    block.name;
+
+  showPlanScreen(
+    currentSelectedPlan
+  );
+}
+
+function renameSavedBlock(blockId) {
+  const blocks = getSavedBlocks();
+  const blockIndex =
+    blocks.findIndex(
+      block => block.id === blockId
+    );
+
+  if (blockIndex < 0) return;
+
+  const oldName =
+    blocks[blockIndex].name;
+
+  const enteredName = prompt(
+    "Enter the new block name:",
+    oldName
+  );
+
+  if (enteredName == null) return;
+
+  const newName =
+    enteredName
+      .trim()
+      .replace(/\s+/g, " ");
+
+  if (!newName) {
+    alert(
+      "The block name cannot be blank."
+    );
+    return;
+  }
+
+  const duplicateIndex =
+    blocks.findIndex(
+      (block, index) =>
+        index !== blockIndex &&
+        normalizeBlockName(
+          block.name
+        ) ===
+        normalizeBlockName(
+          newName
+        )
+    );
+
+  if (duplicateIndex >= 0) {
+    alert(
+      "Another saved block already uses that name."
+    );
+    return;
+  }
+
+  blocks[blockIndex].name =
+    newName;
+
+  blocks[blockIndex].savedAt =
+    new Date().toISOString();
+
+  writeSavedBlocks(blocks);
+
+  if (
+    normalizeBlockName(
+      currentOpenedBlockName
+    ) ===
+    normalizeBlockName(oldName)
+  ) {
+    currentOpenedBlockName =
+      newName;
+  }
+
+  renderSavedBlocks(
+    `Renamed "${oldName}" to "${newName}".`
+  );
+}
+
+function deleteSavedBlock(blockId) {
+  const blocks = getSavedBlocks();
+  const block =
+    blocks.find(
+      savedBlock =>
+        savedBlock.id === blockId
+    );
+
+  if (!block) return;
+
+  const confirmed = confirm(
+    `Delete the saved plan for "${block.name}" from this device?`
+  );
+
+  if (!confirmed) return;
+
+  writeSavedBlocks(
+    blocks.filter(
+      savedBlock =>
+        savedBlock.id !== blockId
+    )
+  );
+
+  if (
+    normalizeBlockName(
+      currentOpenedBlockName
+    ) ===
+    normalizeBlockName(
+      block.name
+    )
+  ) {
+    currentOpenedBlockName = "";
+  }
+
+  renderSavedBlocks(
+    `Deleted "${block.name}".`
+  );
+}
+
+function renderSavedBlocks(
+  message = ""
+) {
+  if (!savedBlocksList) return;
+
+  const blocks =
+    getSavedBlocks();
+
+  if (!blocks.length) {
+    savedBlocksList.innerHTML = `
+      <p class="muted">
+        No blocks have been saved on this device.
+      </p>
+    `;
+  } else {
+    savedBlocksList.innerHTML =
+      blocks
+        .map(block => {
+          const plan = block.plan || {};
+          const input = block.input || {};
+          const productName =
+            input.selectedProduct?.name ||
+            "Manual rate";
+
+          const savedDate =
+            block.savedAt
+              ? new Date(
+                  block.savedAt
+                ).toLocaleString()
+              : "Unknown date";
+
+          return `
+            <article class="saved-block-item">
+              <div>
+                <h3>${escapeHtml(block.name)}</h3>
+
+                <p class="muted">
+                  ${escapeHtml(productName)}
+                  ·
+                  ${Number(
+                    plan.resultingRate ||
+                    plan.actualRate ||
+                    input.targetRate ||
+                    0
+                  ).toFixed(1)}
+                  per acre
+                  ·
+                  ${Number(
+                    plan.count || 0
+                  )}
+                  dispensers
+                </p>
+
+                <p class="hint">
+                  Saved ${escapeHtml(savedDate)}
+                </p>
+              </div>
+
+              <div class="saved-block-actions">
+                <button
+                  type="button"
+                  data-open-block="${escapeHtmlAttribute(block.id)}">
+                  Open
+                </button>
+
+                <button
+                  type="button"
+                  class="secondary-button"
+                  data-rename-block="${escapeHtmlAttribute(block.id)}">
+                  Rename
+                </button>
+
+                <button
+                  type="button"
+                  class="secondary-button danger-button"
+                  data-delete-block="${escapeHtmlAttribute(block.id)}">
+                  Delete
+                </button>
+              </div>
+            </article>
+          `;
+        })
+        .join("");
+  }
+
+  savedBlocksList
+    .querySelectorAll(
+      "[data-open-block]"
+    )
+    .forEach(button => {
+      button.addEventListener(
+        "click",
+        () =>
+          openSavedBlock(
+            button.dataset.openBlock
+          )
+      );
+    });
+
+  savedBlocksList
+    .querySelectorAll(
+      "[data-rename-block]"
+    )
+    .forEach(button => {
+      button.addEventListener(
+        "click",
+        () =>
+          renameSavedBlock(
+            button.dataset.renameBlock
+          )
+      );
+    });
+
+  savedBlocksList
+    .querySelectorAll(
+      "[data-delete-block]"
+    )
+    .forEach(button => {
+      button.addEventListener(
+        "click",
+        () =>
+          deleteSavedBlock(
+            button.dataset.deleteBlock
+          )
+      );
+    });
+
+  if (savedBlocksStatus) {
+    savedBlocksStatus.textContent =
+      message;
+  }
+}
+
+function printCurrentPlan() {
+  if (!currentSelectedPlan) {
+    alert(
+      "Open a deployment pattern before printing."
+    );
+    return;
+  }
+
+  document.body.dataset.printBlock =
+    currentOpenedBlockName ||
+    "Unsaved Plan";
+
+  window.print();
+}
+
+function exportSavedBlocks() {
+  const blocks = getSavedBlocks();
+
+  if (!blocks.length) {
+    renderSavedBlocks(
+      "There are no saved blocks to export."
+    );
+    return;
+  }
+
+  const exportData = {
+    type: "ct-app-saved-blocks",
+    version: 1,
+    exportedAt:
+      new Date().toISOString(),
+    blocks
+  };
+
+  const blob = new Blob(
+    [
+      JSON.stringify(
+        exportData,
+        null,
+        2
+      )
+    ],
+    {
+      type: "application/json"
+    }
+  );
+
+  const downloadUrl =
+    URL.createObjectURL(blob);
+
+  const link =
+    document.createElement("a");
+
+  link.href = downloadUrl;
+  link.download =
+    "CT-APP-saved-blocks.json";
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setTimeout(
+    () =>
+      URL.revokeObjectURL(
+        downloadUrl
+      ),
+    1000
+  );
+
+  renderSavedBlocks(
+    `Exported ${blocks.length} saved block${blocks.length === 1 ? "" : "s"}.`
+  );
+}
+
+async function importSavedBlocks(
+  event
+) {
+  const file =
+    event.target.files?.[0];
+
+  if (!file) return;
+
+  try {
+    const imported =
+      JSON.parse(
+        await file.text()
+      );
+
+    if (
+      imported?.type !==
+        "ct-app-saved-blocks" ||
+      !Array.isArray(
+        imported.blocks
+      )
+    ) {
+      throw new Error(
+        "That file is not a CT APP saved-block backup."
+      );
+    }
+
+    const existing =
+      getSavedBlocks();
+
+    const merged =
+      [...existing];
+
+    let added = 0;
+    let replaced = 0;
+
+    imported.blocks.forEach(
+      importedBlock => {
+        if (
+          !importedBlock?.name ||
+          !importedBlock?.input ||
+          !importedBlock?.plan
+        ) {
+          return;
+        }
+
+        const matchIndex =
+          merged.findIndex(
+            block =>
+              normalizeBlockName(
+                block.name
+              ) ===
+              normalizeBlockName(
+                importedBlock.name
+              )
+          );
+
+        if (matchIndex >= 0) {
+          merged[matchIndex] =
+            importedBlock;
+          replaced++;
+        } else {
+          merged.push(
+            importedBlock
+          );
+          added++;
+        }
+      }
+    );
+
+    const confirmed = confirm(
+      `Import ${added} new block${added === 1 ? "" : "s"} and replace ${replaced} matching block${replaced === 1 ? "" : "s"} on this device?`
+    );
+
+    if (!confirmed) {
+      renderSavedBlocks(
+        "Import cancelled."
+      );
+      return;
+    }
+
+    writeSavedBlocks(merged);
+    renderSavedBlocks(
+      `Import complete: ${added} added and ${replaced} replaced.`
+    );
+  } catch (error) {
+    console.error(
+      "Saved block import failed:",
+      error
+    );
+
+    renderSavedBlocks(
+      error.message
+    );
+  } finally {
+    importBlocksInput.value = "";
+  }
+}
+
+if (exportBlocksBtn) {
+  exportBlocksBtn.addEventListener(
+    "click",
+    exportSavedBlocks
+  );
+}
+
+if (importBlocksInput) {
+  importBlocksInput.addEventListener(
+    "change",
+    importSavedBlocks
+  );
+}
+
+renderSavedBlocks();
