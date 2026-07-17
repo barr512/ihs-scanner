@@ -3405,6 +3405,447 @@ function getBestPatterns(
     return gaps.slice(0, 12);
   }
 
+  function buildWholeBlockLattice(
+    desiredCount,
+    treatedRows,
+    reverseTrees
+  ) {
+    const averageGap =
+      (
+        treatedRows.length *
+        treesPerRow
+      ) /
+      desiredCount;
+
+    const staggerFractions = [
+      0.45,
+      0.50,
+      0.55
+    ];
+
+    let best = null;
+
+    function makePatternSet(
+      baseOffset,
+      staggerFraction
+    ) {
+      const patterns = [];
+
+      treatedRows.forEach(
+        (row, rowIndex) => {
+          const start =
+            (
+              baseOffset +
+              (
+                rowIndex % 2
+              ) *
+              averageGap *
+              staggerFraction
+            ) %
+            averageGap;
+
+          const positions = [];
+          const used = new Set();
+
+          for (
+            let coordinate = start;
+            coordinate < treesPerRow;
+            coordinate += averageGap
+          ) {
+            const tree = Math.min(
+              treesPerRow,
+              1 +
+                Math.round(
+                  coordinate
+                )
+            );
+
+            if (!used.has(tree)) {
+              used.add(tree);
+              positions.push(tree);
+            }
+          }
+
+          patterns.push(
+            positions.sort(
+              (a, b) => a - b
+            )
+          );
+        }
+      );
+
+      return patterns;
+    }
+
+    function getPatternScore(
+      patterns
+    ) {
+      const total =
+        patterns.reduce(
+          (sum, positions) =>
+            sum +
+            positions.length,
+          0
+        );
+
+      let alignedPairs = 0;
+      let nearPairs = 0;
+
+      for (
+        let rowIndex = 1;
+        rowIndex < patterns.length;
+        rowIndex++
+      ) {
+        const previous =
+          new Set(
+            patterns[rowIndex - 1]
+          );
+
+        patterns[rowIndex].forEach(
+          tree => {
+            if (
+              previous.has(tree)
+            ) {
+              alignedPairs++;
+            }
+
+            if (
+              previous.has(tree - 1) ||
+              previous.has(tree + 1)
+            ) {
+              nearPairs++;
+            }
+          }
+        );
+      }
+
+      return {
+        total,
+        score:
+          Math.abs(
+            total -
+            desiredCount
+          ) *
+            1000000 +
+          alignedPairs *
+            1000 +
+          nearPairs
+      };
+    }
+
+    for (
+      const staggerFraction
+      of staggerFractions
+    ) {
+      for (
+        let step = 0;
+        step < 96;
+        step++
+      ) {
+        const baseOffset =
+          (
+            step /
+            96
+          ) *
+          averageGap;
+
+        const patterns =
+          makePatternSet(
+            baseOffset,
+            staggerFraction
+          );
+
+        const evaluation =
+          getPatternScore(
+            patterns
+          );
+
+        if (
+          !best ||
+          evaluation.score <
+            best.score
+        ) {
+          best = {
+            patterns,
+            score:
+              evaluation.score,
+            total:
+              evaluation.total
+          };
+        }
+      }
+    }
+
+    if (!best) {
+      return null;
+    }
+
+    const patterns =
+      best.patterns.map(
+        positions =>
+          [...positions]
+      );
+
+    function physicalDistance(
+      firstRowIndex,
+      firstTree,
+      secondRowIndex,
+      secondTree
+    ) {
+      const rowDistance =
+        Math.abs(
+          treatedRows[firstRowIndex] -
+          treatedRows[secondRowIndex]
+        ) *
+        input.rowSpacing;
+
+      const treeDistance =
+        Math.abs(
+          firstTree -
+          secondTree
+        ) *
+        input.treeSpacing;
+
+      return Math.sqrt(
+        rowDistance ** 2 +
+        treeDistance ** 2
+      );
+    }
+
+    function nearestDistanceToPattern(
+      rowIndex,
+      tree,
+      ignoreTree = null
+    ) {
+      let nearest = Infinity;
+
+      const firstRow =
+        Math.max(
+          0,
+          rowIndex - 1
+        );
+
+      const lastRow =
+        Math.min(
+          patterns.length - 1,
+          rowIndex + 1
+        );
+
+      for (
+        let otherRowIndex =
+          firstRow;
+        otherRowIndex <=
+          lastRow;
+        otherRowIndex++
+      ) {
+        patterns[
+          otherRowIndex
+        ].forEach(
+          otherTree => {
+            if (
+              otherRowIndex ===
+                rowIndex &&
+              otherTree ===
+                ignoreTree
+            ) {
+              return;
+            }
+
+            nearest = Math.min(
+              nearest,
+              physicalDistance(
+                rowIndex,
+                tree,
+                otherRowIndex,
+                otherTree
+              )
+            );
+          }
+        );
+      }
+
+      return nearest;
+    }
+
+    let total =
+      patterns.reduce(
+        (sum, positions) =>
+          sum +
+          positions.length,
+        0
+      );
+
+    /*
+      Boundary snapping can leave the continuous
+      lattice a few dispensers short. Add those
+      dispensers one at a time at the safest unused
+      tree, while keeping row totals balanced.
+    */
+    while (
+      total <
+      desiredCount
+    ) {
+      const minimumRowCount =
+        Math.min(
+          ...patterns.map(
+            positions =>
+              positions.length
+          )
+        );
+
+      let bestAddition = null;
+
+      patterns.forEach(
+        (positions, rowIndex) => {
+          if (
+            positions.length >
+            minimumRowCount
+          ) {
+            return;
+          }
+
+          const used =
+            new Set(positions);
+
+          for (
+            let tree = 1;
+            tree <= treesPerRow;
+            tree++
+          ) {
+            if (used.has(tree)) {
+              continue;
+            }
+
+            const distance =
+              nearestDistanceToPattern(
+                rowIndex,
+                tree
+              );
+
+            if (
+              !bestAddition ||
+              distance >
+                bestAddition.distance
+            ) {
+              bestAddition = {
+                rowIndex,
+                tree,
+                distance
+              };
+            }
+          }
+        }
+      );
+
+      if (!bestAddition) {
+        return null;
+      }
+
+      patterns[
+        bestAddition.rowIndex
+      ].push(
+        bestAddition.tree
+      );
+
+      patterns[
+        bestAddition.rowIndex
+      ].sort(
+        (a, b) => a - b
+      );
+
+      total++;
+    }
+
+    /*
+      If rounding created extras, remove the placement
+      with the smallest local separation from one of
+      the most populated rows.
+    */
+    while (
+      total >
+      desiredCount
+    ) {
+      const maximumRowCount =
+        Math.max(
+          ...patterns.map(
+            positions =>
+              positions.length
+          )
+        );
+
+      let bestRemoval = null;
+
+      patterns.forEach(
+        (positions, rowIndex) => {
+          if (
+            positions.length <
+            maximumRowCount
+          ) {
+            return;
+          }
+
+          positions.forEach(
+            tree => {
+              const distance =
+                nearestDistanceToPattern(
+                  rowIndex,
+                  tree,
+                  tree
+                );
+
+              if (
+                !bestRemoval ||
+                distance <
+                  bestRemoval.distance
+              ) {
+                bestRemoval = {
+                  rowIndex,
+                  tree,
+                  distance
+                };
+              }
+            }
+          );
+        }
+      );
+
+      if (!bestRemoval) {
+        return null;
+      }
+
+      patterns[
+        bestRemoval.rowIndex
+      ] =
+        patterns[
+          bestRemoval.rowIndex
+        ].filter(
+          tree =>
+            tree !==
+            bestRemoval.tree
+        );
+
+      total--;
+    }
+
+    if (reverseTrees) {
+      return patterns.map(
+        positions =>
+          positions
+            .map(
+              tree =>
+                treesPerRow -
+                tree +
+                1
+            )
+            .sort(
+              (a, b) => a - b
+            )
+      );
+    }
+
+    return patterns;
+  }
+
   function constructPattern(
     rateClass,
     rowInterval,
@@ -3451,201 +3892,30 @@ function getBestPatterns(
     const reverseTrees =
       shouldReverseTrees();
 
+    const rowPatterns =
+      buildWholeBlockLattice(
+        desiredCount,
+        treatedRows,
+        reverseTrees
+      );
+
+    if (!rowPatterns) {
+      return null;
+    }
+
+    const rowCounts =
+      rowPatterns.map(
+        positions =>
+          positions.length
+      );
+
     const placements = [];
-    const rowCounts = [];
-    const rowPatterns = [];
 
     treatedRows.forEach(
       (row, rowIndex) => {
-        const extrasBefore =
-          Math.floor(
-            rowIndex *
-            remainder /
-            treatedRows.length
-          );
-
-        const extrasAfter =
-          Math.floor(
-            (
-              rowIndex + 1
-            ) *
-            remainder /
-            treatedRows.length
-          );
-
-        const count =
-          basePerRow +
-          (
-            extrasAfter >
-            extrasBefore
-              ? 1
-              : 0
-          );
-
-        /*
-          Test several starting phases and choose the
-          one that maximizes physical separation from
-          the preceding treated row. This prevents
-          mixed-gap rows with slightly different counts
-          from drifting into crowded near-alignments.
-        */
-        const preferredPhase =
-          (
-            rowIndex +
-            phaseShift
-          ) %
-            2 ===
-          0
-            ? 0.25
-            : 0.75;
-
-        const phaseCandidates =
-          rowIndex === 0
-            ? [preferredPhase]
-            : Array.from(
-                { length: 24 },
-                (_, index) =>
-                  (
-                    index + 0.5
-                  ) / 24
-              );
-
-        let positions = [];
-        let bestPhaseScore =
-          -Infinity;
-
-        phaseCandidates.forEach(
-          phase => {
-            const candidatePositions =
-              buildEvenPositions(
-                count,
-                phase,
-                reverseTrees
-              );
-
-            if (
-              candidatePositions.length !==
-              count
-            ) {
-              return;
-            }
-
-            if (rowIndex === 0) {
-              positions =
-                candidatePositions;
-              bestPhaseScore = 0;
-              return;
-            }
-
-            const previousPositions =
-              rowPatterns[
-                rowPatterns.length - 1
-              ];
-
-            const previousRow =
-              treatedRows[
-                rowIndex - 1
-              ];
-
-            const acrossDistance =
-              Math.abs(
-                row - previousRow
-              ) *
-              input.rowSpacing;
-
-            let minimumDistance =
-              Infinity;
-
-            let crowdedPairCount = 0;
-
-            const expectedDistance =
-              Math.sqrt(
-                SQFT_PER_ACRE /
-                (
-                  desiredCount /
-                  input.acres
-                )
-              );
-
-            candidatePositions.forEach(
-              tree => {
-                previousPositions.forEach(
-                  previousTree => {
-                    const alongDistance =
-                      Math.abs(
-                        tree -
-                        previousTree
-                      ) *
-                      input.treeSpacing;
-
-                    const distance =
-                      Math.sqrt(
-                        acrossDistance ** 2 +
-                        alongDistance ** 2
-                      );
-
-                    minimumDistance =
-                      Math.min(
-                        minimumDistance,
-                        distance
-                      );
-
-                    if (
-                      distance <
-                      expectedDistance *
-                        0.82
-                    ) {
-                      crowdedPairCount++;
-                    }
-                  }
-                );
-              }
-            );
-
-            const phasePreference =
-              Math.min(
-                Math.abs(
-                  phase -
-                  preferredPhase
-                ),
-                1 -
-                  Math.abs(
-                    phase -
-                    preferredPhase
-                  )
-              );
-
-            const phaseScore =
-              minimumDistance * 100 -
-              crowdedPairCount * 25 -
-              phasePreference;
-
-            if (
-              phaseScore >
-              bestPhaseScore
-            ) {
-              bestPhaseScore =
-                phaseScore;
-
-              positions =
-                candidatePositions;
-            }
-          }
-        );
-
-        if (
-          positions.length !==
-          count
-        ) {
-          return;
-        }
-
-        rowCounts.push(count);
-        rowPatterns.push(
-          positions
-        );
-
-        positions.forEach(
+        rowPatterns[
+          rowIndex
+        ].forEach(
           tree => {
             placements.push({
               row,
@@ -3925,7 +4195,7 @@ function getBestPatterns(
           return (
             Math.max(...gaps) -
             Math.min(...gaps) <=
-            1
+            2
           );
         }
       );
