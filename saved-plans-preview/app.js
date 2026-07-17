@@ -3609,8 +3609,14 @@ if (
               continue;
             }
 
+            /*
+              Never recommend more dispensers than the grower
+              requested or entered as available inventory.
+              A lower-rate pattern can leave extras for borders;
+              a higher-rate pattern would require inventory the
+              grower may not have.
+            */
             if (
-              inventoryIsLimited &&
               count > targetDispensers
             ) {
               continue;
@@ -4970,10 +4976,6 @@ if (
   addSelectedPattern(
     unusedLowerPattern
   );
-} else {
-  addSelectedPattern(
-    higherClassPatterns[0]
-  );
 }
 
 /*
@@ -5010,19 +5012,12 @@ lowerClassPatterns.forEach(
   }
 );
 
-higherClassPatterns.forEach(
-  pattern => {
-    if (
-      selectedPatterns.length >= 3
-    ) {
-      return;
-    }
-
-    addSelectedPattern(
-      pattern
-    );
-  }
-);
+/*
+  Higher-rate candidates are intentionally not selected.
+  Growers can place leftover dispensers from a lower-rate
+  pattern along borders, but cannot be expected to supply
+  additional dispensers for a higher-rate pattern.
+*/
 
 /*
   Store inventory guidance for the UI.
@@ -5171,12 +5166,44 @@ if (!idealLayout) {
   return;
 }
 
-const engineResults =
+let engineResults =
   getBestPatterns(
     input,
     idealLayout,
     showClosest
   );
+
+let usedAutomaticPracticalFallback =
+  false;
+
+/*
+  When no fully optimized pattern survives, automatically
+  check the practical audit. Higher-rate candidates have
+  already been excluded.
+*/
+if (
+  !showClosest &&
+  !engineResults.patterns.length
+) {
+  const practicalResults =
+    getBestPatterns(
+      input,
+      idealLayout,
+      true
+    );
+
+  if (
+    practicalResults.patterns.length
+  ) {
+    engineResults =
+      practicalResults;
+
+    showClosest = true;
+
+    usedAutomaticPracticalFallback =
+      true;
+  }
+}
 
 /*
   Save the closest rejected candidate so its audit
@@ -5188,6 +5215,9 @@ currentRejectedPattern =
 
 input.showingClosestPatterns =
   showClosest;
+
+input.usingPracticalFallback =
+  usedAutomaticPracticalFallback;
 
   input.targetAreaPerDispenser =
     43560 /
@@ -5361,6 +5391,20 @@ ${
 ${
   input.inventoryIsLimited
     ? `<p class="muted"><strong>Limited inventory mode:</strong> Available dispensers are below the label-rate target. These patterns show the best practical distribution for the amount entered.</p>`
+    : ``
+}
+
+${
+  input.usingPracticalFallback
+    ? `
+      <p class="pattern-warning">
+        <strong>Closest practical result:</strong>
+        No fully optimized pattern passed at the requested rate.
+        The options below use no more dispensers than requested.
+        Review the coverage fit before selecting a plan; leftover
+        dispensers may be placed along borders or the highest-pressure edge.
+      </p>
+    `
     : ``
 }
 
@@ -5717,6 +5761,17 @@ function renderOptions(plans) {
       <span class="muted">dispensers</span>
     </div>
   </div>
+
+  ${
+    currentInput?.usingPracticalFallback
+      ? `
+        <p class="pattern-warning">
+          Closest practical option—not a fully optimized coverage match.
+          This pattern does not exceed the requested dispenser total.
+        </p>
+      `
+      : ``
+  }
 
   ${
     repeatedMatch
